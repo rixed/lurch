@@ -1,0 +1,34 @@
+opam-version: "2.0"
+version: "@PACKAGE_VERSION@"
+name: "lurch"
+maintainer: "rixed-opam@happyleptic.org"
+authors: "rixed-opam@happyleptic.org"
+homepage: "https://github.com/rixed/lurch"
+bug-reports: "https://github.com/rixed/lurch/issues"
+dev-repo: "git+https://github.com/rixed/lurch.git"
+synopsis: "Robotservant with a GUI"
+build: [
+  ["./configure"]
+  [make]
+  [make "check"] {with-test}
+]
+install: [make "bin_dir=%{bin}%" "install"]
+remove: [make "bin_dir=%{bin}%" "uninstall"]
+depends: [
+  "batteries" {>= "2.10.0"}
+  "cgi" {>= "0.10"}
+  "cmdliner" {build & >= "1.0.2"}
+  "js_of_ocaml"
+  "js_of_ocaml-ppx"
+  "js_of_ocaml-ppx_deriving_json"
+  "ocamlfind" {build & >= "1.8.0"}
+  "postgresql"
+  "qtest" {with-test}
+  "syslog" {>= "1.5"}
+  "ocaml" {< "4.08.0"} # Because of vdom -> gen_js_api
+  "ocaml-vdom"
+]
+depexts: [
+  [["debian"]
+    ["m4" "libssl-dev" "libpq-dev"]]
+]

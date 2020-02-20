@@ -1,0 +1,33 @@
+# vim: ft=dockerfile
+FROM debian:buster-slim
+
+# Do not install recommends:
+RUN echo 'APT::Install-Recommends "0";' > \
+      /etc/apt/apt.conf.d/no_recommends
+
+# Install docker!
+RUN apt-get --yes update && \
+    DEBIAN_FRONTEND=noninteractive \
+      apt-get --yes upgrade && \
+    DEBIAN_FRONTEND=noninteractive \
+      apt-get --yes install \
+        apt-transport-https \
+        ca-certificates \
+        curl \
+        gnupg2 \
+        software-properties-common
+
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg | \
+    apt-key add -
+
+RUN add-apt-repository \
+      "deb [arch=amd64] https://download.docker.com/linux/debian buster stable"
+
+RUN apt-get --yes update && \
+    DEBIAN_FRONTEND=noninteractive \
+      apt-get --yes upgrade && \
+    DEBIAN_FRONTEND=noninteractive \
+      apt-get --yes install \
+        docker-ce \
+        docker-ce-cli \
+        containerd.io

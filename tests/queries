@@ -1,0 +1,90 @@
+#!/bin/sh
+
+set -e
+
+test_dir=$(dirname $0)
+top_dir="$test_dir/.."
+
+tmp_dir=/tmp/lurch_test_$!
+mkdir -p "$tmp_dir"
+log=$tmp_dir/log
+cgi="$top_dir/www/lurch cgi"
+
+success=yes
+
+export REQUEST_METHOD="PUT"
+export SERVER_NAME="localhost"
+export SCRIPT_NAME="lurch"
+export CONTENT_TYPE="application/json"
+
+echo -n 'List past runs... '
+
+export QUERY_STRING='p=list_past_runs&program=test+build'
+$cgi 2> "$log" > $test_dir/list_past_runs_1.out
+if ! diff $test_dir/list_past_runs_1.out $test_dir/list_past_runs_1.exp; then
+  success=no
+else
+  echo OK
+fi
+
+echo -n 'list_programs... '
+
+export QUERY_STRING='p=list_programs'
+$cgi 2> "$log" > $test_dir/list_programs_1.out
+if ! diff $test_dir/list_programs_1.out $test_dir/list_programs_1.exp; then
+  success=no
+else
+  echo OK
+fi
+
+echo -n 'get_program... '
+
+export QUERY_STRING='p=get_program&program=test+build'
+$cgi 2> "$log" > $test_dir/get_program_1.out
+if ! diff $test_dir/get_program_1.out $test_dir/get_program_1.exp; then
+  success=no
+else
+  echo OK
+fi
+
+echo -n 'save_program... '
+
+export QUERY_STRING='p=save_program'
+$cgi 2> "$log" > $test_dir/save_program_1.out << EOF
+[0,"testprog",0,[0,0,[0,"ls",0]]]
+EOF
+if ! diff $test_dir/save_program_1.out $test_dir/save_program_1.exp; then
+  success=no
+else
+  echo OK
+fi
+
+echo -n 'run_program... '
+
+export QUERY_STRING='p=start_program&program=testprog'
+$cgi 2> "$log" > $test_dir/start_program_1.out
+if ! diff $test_dir/start_program_1.out $test_dir/start_program_1.exp; then
+  success=no
+else
+  echo OK
+fi
+
+if test success = yes; then
+  echo SUCCESS
+  exit 0
+else
+  echo FAILURE
+  exit 1
+fi
+
+echo 'get_logs'
+
+curl 'http://localhost:8080/lurch?p=get_logs&top_run=3'
+
+echo 'get_run'
+
+curl 'http://localhost:8080/lurch?p=get_run&id=3'
+
+echo 'start_program'
+
+curl 'http://localhost:8080/lurch?p=start_program&program=new-program'

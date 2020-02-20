@@ -1,0 +1,139 @@
+/* Happy-happy colors */
+:root {
+  --bg-color: #eee;
+  --fg-color: #111;
+  --link-color: #558;
+  --button-bg-color: #111;
+  --button-fg-color: #fff;
+  --spinner-bg-color: var(--bg-color);
+  --spinner-fg-color: #888;
+  --thead-bg-color: #888;
+  --thead-fb-color: #000;
+  --tr-bg-color-odd: var(--bg-color);
+  --tr-bg-color-even: #e8e8e8;
+  --success-color: green;
+  --failure-color: red;
+  --killed-color: orange;
+}
+
+/* Whole */
+body {
+  /* Color */
+  background-color: var(--bg-color);
+  color: var(--fg-color);
+}
+.click {
+  /* Misc. */
+  cursor: pointer;
+}
+span.click {
+  /* Color */
+  color: var(--link-color);
+  text-decoration: underline dashed var(--link-color);
+  font-weight: bold;
+}
+
+/* Header */
+
+p.header {
+  /* Layout */
+  font-size: 75%;
+  margin-top: 0;
+  margin-bottom: 0.3em;
+  padding-top: 0;
+}
+p.header .title {
+  /* Color */
+  color: #400;
+  font-weight: bold;
+}
+p.header a {
+  color: var(--fg-color);
+}
+
+/* Menu */
+
+ul.menu {
+  /* Layout */
+  text-align: center;
+  margin-top: 0.3em;
+}
+ul.menu > li {
+  /* Layout */
+  display: inline-block;
+  padding: 0.5em 1em 0.5em 1em;
+  margin-right: 1em;
+  /* Color */
+  background-color: var(--button-bg-color);
+  color: var(--button-fg-color);
+  /* Font */
+  font-weight: bold;
+  /* Misc. */
+  cursor: pointer;
+}
+
+/* Spinner */
+
+p.spinner {
+  /* Layout */
+  position: fixed;
+  top: 0em;
+  right: 0em;
+  margin-right: 1em;
+  /* COlor */
+  background-color: var(--spinner-bg-color);
+  color: var(--spinner-fg-color);
+  /* Misc. */
+  cursor: pointer;
+}
+
+/* Tables */
+
+table {
+  /* Layout */
+  width: 100%;
+}
+tr:nth-child(odd) {
+  /* Colors */
+  background-color: var(--tr-bg-color-odd);
+}
+tr:nth-child(even) {
+  /* Colors */
+  background-color: var(--tr-bg-color-even);
+}
+thead > tr td {
+  /* Layout */
+  text-align: left;
+  font-weight: bold;
+  /* Colors */
+  background-color: var(--thead-bg-color);
+  color: var(--thead-fg-color);
+}
+tfoot > tr {
+  /* Layout */
+  text-align: left; /* Those tables can be very wide */
+}
+td.time {
+  /* Layout */
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+td.logline {
+  /* Layout */
+  white-space: nowrap;
+}
+
+/* Run */
+
+.success {
+  /* Color */
+  color: var(--success-color);
+}
+.failure {
+  /* Color */
+  background-color: var(--failure-color);
+}
+.killed {
+  /* Color */
+  background-color: var(--killed-color);
+}

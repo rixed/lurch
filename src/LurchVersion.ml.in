@@ -1,0 +1,1 @@
+let release_tag = "v@PACKAGE_VERSION@"

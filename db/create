@@ -1,0 +1,18 @@
+#!/bin/sh
+
+instance_name=lurchdb
+db_port=5433
+db_pwd=secret
+db_docker_image=postgres
+
+db_container=$(docker run --name $instance_name -p $db_port:5432 -e POSTGRES_PASSWORD=$db_pwd --detach $db_docker_image)
+
+echo "DB running in docker container $db_container"
+
+echo "Waiting for postgres service..."
+sleep 30
+docker exec -i $instance_name psql -U postgres -f /dev/stdin --quiet < db/schema.sql
+docker exec -i $instance_name psql -U postgres -f /dev/stdin --quiet < db/populate.sql
+
+# Also:
+sudo cgcreate -a rixed -t rixed -g cpuacct,memory:lurch

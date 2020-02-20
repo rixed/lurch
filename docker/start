@@ -1,0 +1,13 @@
+#!/bin/sh
+
+if grep --quiet 'local all all trust' /etc/postgresql/11/main/pg_hba.conf; then
+  # Database configured already
+  /usr/bin/pg_ctlcluster 11 main start
+else
+  echo Initializing the database.
+  su - postgres -c 'echo local all all trust >> /etc/postgresql/11/main/pg_hba.conf'
+  /usr/bin/pg_ctlcluster 11 main start
+  psql -U postgres -f /dev/stdin --quiet < /lurch/schema.sql
+fi
+
+/usr/sbin/lighttpd -f /lurch/lighttpd.conf -D
