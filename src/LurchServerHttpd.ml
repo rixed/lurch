@@ -14,8 +14,8 @@ let get_param params name parse =
   try List.assoc name params |> parse
   with Not_found -> raise (MissingParameter name)
 
-let list_past_runs program from limit =
-  Db.ListPastRuns.get ?program ?from ?limit () |>
+let list_past_runs program oldest_top_run limit =
+  Db.ListPastRuns.get ?program ?oldest_top_run ?limit () |>
   Array.of_enum |>
   Api.ListPastRuns.array_to_json_buffer |>
   print_data
@@ -84,9 +84,9 @@ let serve () =
     (match get_param "p" identity with
     | "list_past_runs" ->
         let program = get_opt_param "program" identity
-        and from = get_opt_param "from" float_of_string
+        and oldest_top_run = get_opt_param "oldest_top_run" int_of_string
         and limit = get_opt_param "limit" int_of_string in
-        list_past_runs program from limit
+        list_past_runs program oldest_top_run limit
     | "list_programs" ->
         list_programs ()
     | "get_program" ->

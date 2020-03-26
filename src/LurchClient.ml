@@ -62,17 +62,16 @@ let lurch_url page params =
     s ^ "&" ^ Url.urlencode n ^"="^ Url.urlencode v
   ) ("lurch?p="^ page) params
 
-let oldest_run = function
+let oldest_top_run = function
   | State.ListPastRuns runs when Array.length runs > 0 ->
-      if Array.length runs = 0 then None
-      else
-        Some runs.(Array.length runs - 1).created
+      Some runs.(Array.length runs - 1).top_run
   | State.EditProgram { last_runs } ->
-      Array.fold_left (fun oldest r ->
-        match oldest, r.Api.ListPastRuns.created with
-        | None, created -> Some created
-        | Some oldest, created -> Some (min oldest created)
-      ) None last_runs
+      let oldest =
+        Array.fold_left (fun oldest r ->
+          if r.Api.ListPastRuns.created < oldest.Api.ListPastRuns.created then
+            r else oldest
+        ) last_runs.(0) last_runs in
+      Some oldest.Api.ListPastRuns.top_run
   | _ ->
       None
 
@@ -90,9 +89,9 @@ let update st = function
       return ~c st
   | `GetPastProgramRuns -> (* Fetch list of program past runs and display them: *)
       let params =
-        match oldest_run st.State.location with
+        match oldest_top_run st.State.location with
         | None -> []
-        | Some f -> [ "from", string_of_float f ] in
+        | Some oldest -> [ "oldest_top_run", string_of_int oldest ] in
       let ajax =
         Http_get { url = lurch_url "list_past_runs" params ;
                    callback = fun r -> `GotPastProgramRuns r } in
@@ -151,9 +150,10 @@ let update st = function
           waiting = false ;
           refresh_msg = Some (`GetProgram res.name) }
   | `GetLastRuns name ->
-      let from = oldest_run st.State.dialog in
-      let params = match from with None -> []
-                   | Some f -> [ "from", string_of_float f ] in
+      let params =
+        match oldest_top_run st.State.dialog with
+        | None -> []
+        | Some oldest -> [ "oldest_top_run", string_of_int oldest ] in
       let ajax =
         let params = ("program", name) :: params in
         Http_get { url = lurch_url "list_past_runs" params ;

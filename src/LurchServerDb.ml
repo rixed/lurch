@@ -459,15 +459,15 @@ end
  *)
 module ListPastRuns =
 struct
-  (* [from] is for pagination, only programs _stricly_ older than that will
-   * be returned. *)
+  (* [oldest_top_run] is for pagination: return only runs which top_run is
+   * _stricly_ older than that will be returned. *)
   (* TODO: prepare stmt *)
-  let get ?program ?(from=max_float) ?(limit=20) () =
+  let get ?program ?oldest_top_run ?(limit=20) () =
     let cnx = get_cnx () in
-    let from = min max_ts from in
+    let params = [| string_of_int limit |] in
     let params =
-      [| string_of_float from ;
-         string_of_int limit |] in
+      if oldest_top_run = None then params else
+        Array.append params [| string_of_int (Option.get oldest_top_run) |] in
     let params =
       if program = None then params else
         Array.append params [| Option.get program |] in
@@ -480,10 +480,13 @@ struct
                  cpu_usr, cpu_sys, mem_usr, mem_sys, \
                  exit_status
          from list_past_runs \
-         where created < to_timestamp($1) " ^
+         where true " ^
+         (if oldest_top_run = None then "" else
+          "and started < (select started from list_past_runs \
+                          where top_run = $2) ") ^
          (if program = None then "" else
-           "and name = $3 ") ^
-         "order by started desc limit $2") in
+           ("and name = $"^ string_of_int (Array.length params) ^ " ")) ^
+         "order by started desc limit $1") in
     Enum.init res#ntuples (fun i ->
       let getv conv j = conv (res#getvalue i j) in
       let getn conv j = if res#getisnull i j then None else Some (getv conv j) in
