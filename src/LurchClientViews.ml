@@ -41,6 +41,8 @@ let outcome exit_status =
         "Completed", "green"
       else if s = 127 then
         "Cannot start", "red"
+      else if s = ~-128 then
+        "Expired", "red"
       else if s > 0 then
         "Failed (status "^ string_of_int s ^")", "red"
       else

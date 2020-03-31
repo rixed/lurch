@@ -468,7 +468,23 @@ let step_isolation () =
               stop_with_stats isolate status)
       | _ -> assert false))
 
+(* Get the list of old unstarted top runs and delete them if there are too
+ * many *)
+let expire_old_runs () =
+  let one_day = 24. *. 3600. in
+  let olds = Db.Run.get_old_unstarted ~older_than:one_day in
+  if not (Enum.is_empty olds) then (
+    log.warning "Expiring old unstarted runs." ;
+    Enum.iter (fun run_id ->
+      Db.LogLine.insert run_id 2 "Tool many old runs, expiring" ;
+      Db.Run.expire run_id
+    ) olds
+  )
+
 let step () =
+  (* Timeout unstarted top run commands, as there could be tons of old ones if the
+   * stepper was not run for long *)
+  expire_old_runs () ;
   (* TODO: also timeout running commands *)
   step_sequences () ;
   (* Check if some waits have been confirmed: *)

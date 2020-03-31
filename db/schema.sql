@@ -129,7 +129,7 @@ create table run (
   mem_usr int,
   mem_sys int,
 
-  -- <0 values are for signal numbers:
+  -- <0 values are for signal numbers or expiration (-128, started = stopped)
   exit_status int,
 
   primary key (id),

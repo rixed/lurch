@@ -293,6 +293,32 @@ struct
       Printf.sprintf "Cannot stop run %d: %s\n" run_id
         (Printexc.to_string e) |>
       failwith
+
+  (* Return possibly very long list of old unstarted top runs *)
+  let get_old_unstarted ~older_than =
+    let cnx = get_cnx () in
+    let params = [| string_of_float older_than |] in
+    let res =
+      cnx#exec ~expect:[Tuples_ok] ~params
+        "select id from run \
+         where top_run is null and started is null and \
+               now() - created > make_interval(0, 0, 0, 0, 0, 0, $1)" in
+    Enum.init res#ntuples (fun i ->
+      int_of_string (res#getvalue i 0))
+
+  let expire run_id =
+    let cnx = get_cnx () in
+    let params = [| string_of_int run_id |] in
+    log.debug "Expiring run %d" run_id ;
+    try
+      cnx#exec ~expect:[Command_ok] ~params
+        "update run set started = now(), stopped = now(), exit_status = -128 \
+         where id = $1" |>
+      ignore
+    with e ->
+      Printf.sprintf "Cannot expire run %d: %s\n" run_id
+        (Printexc.to_string e) |>
+      failwith
 end
 
 module ListLogLines =
