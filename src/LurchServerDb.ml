@@ -323,17 +323,22 @@ end
 
 module ListLogLines =
 struct
-  let get top_run since =
+  (* [run] might be the id of the top run we want all logs for, or an
+   * individual run. *)
+  let get run since =
     let cnx = get_cnx () in
     let params =
-      [| string_of_int top_run ;
+      [| string_of_int run ;
          string_of_float (since |? max_ts) |] in
     let res =
+      (* This awful query to circumvent the query planer insisting on seq-scanning
+       * the logline table regardless of stats: *)
       cnx#exec ~expect:[Tuples_ok] ~params
         "select run, command, fd, \
                 extract(epoch from time), line \
          from list_loglines \
-         where coalesce(top_run, run) = $1 and time > to_timestamp($2) \
+         where run in (select id from run where id = $1 or top_run = $1) \
+               and time > to_timestamp($2) \
          order by time" in
     Enum.init res#ntuples (fun i ->
       let getv conv j = conv (res#getvalue i j) in

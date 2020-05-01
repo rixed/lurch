@@ -234,20 +234,20 @@ let update st = function
       let run = { (Api.Run.of_json_string res) with logs } in
       return ~c:[Vdom.Cmd.echo (`GetMoreLogs run)]
         State.{ st with dialog = ShowRun { run } }
-  | `GetMoreLogs top_run ->
+  | `GetMoreLogs run ->
       (* FIXME: since is always 0 when refreshing because this run has always
        * 0 lines then, whereas the `More` button work as expected.
        * Instead of auto-refreshing, make that more button use the timeout
        * on its own to do the right thing? *)
       let since =
-        let len = Array.length top_run.Api.Run.logs in
+        let len = Array.length run.Api.Run.logs in
         log ("GetMoreLogs: currently have "^ string_of_int len ^" lines") ;
-        if len = 0 then 0. else top_run.logs.(len-1).Api.LogLine.time in
+        if len = 0 then 0. else run.logs.(len-1).Api.LogLine.time in
       let ajax =
-        let params = [ "top_run", string_of_int top_run.id ;
+        let params = [ "run", string_of_int run.id ;
                        "since", string_of_float since ] in
         Http_get { url = lurch_url "get_more_logs" params ;
-                   callback = fun r -> `GotMoreLogs (r, top_run) } in
+                   callback = fun r -> `GotMoreLogs (r, run) } in
       return ~c:[ajax] State.{ st with waiting = true }
   | `GotMoreLogs (Error e, _) ->
       return State.{ st with dialog = ShowError e ; waiting = false }

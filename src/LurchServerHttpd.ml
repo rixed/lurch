@@ -51,8 +51,8 @@ let save_program prev_name program =
       Db.Program.update program prev_name) ;
   get_program program.name
 
-let get_more_logs top_run since =
-  Db.ListLogLines.get top_run since |>
+let get_more_logs run since =
+  Db.ListLogLines.get run since |>
   Array.of_enum |>
   Api.LogLine.array_to_json_buffer |>
   print_data
@@ -97,9 +97,11 @@ let serve () =
         let prev_name = get_opt_param "prev_name" identity in
         save_program prev_name program
     | "get_more_logs" ->
-        let top_run = get_param "top_run" int_of_string
+        (* We might ask for all the logs for this top_run, or all the logs for
+         * a particular run, both with the run parameter. *)
+        let run = get_param "run" int_of_string
         and since = get_opt_param "since" float_of_string in
-        get_more_logs top_run since
+        get_more_logs run since
     | "get_run" ->
         let run_id = get_param "id" int_of_string in
         get_run run_id

@@ -150,6 +150,8 @@ create table logline (
   foreign key (run) references run (id) on delete cascade
 );
 
+create index if not exists logline_run on logline using hash (run);
+
 -- Where to store that a command_wait has been confirmed:
 create table wait_confirmed (
   run int not null, -- must be a command_wait
