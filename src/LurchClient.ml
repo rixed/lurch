@@ -65,7 +65,7 @@ let lurch_url page params =
 let oldest_top_run = function
   | State.ListPastRuns runs when Array.length runs > 0 ->
       Some runs.(Array.length runs - 1).top_run
-  | State.EditProgram { last_runs } ->
+  | State.EditProgram { last_runs } when Array.length last_runs > 0 ->
       let oldest =
         Array.fold_left (fun oldest r ->
           if r.Api.ListPastRuns.created < oldest.Api.ListPastRuns.created then
