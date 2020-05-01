@@ -51,17 +51,18 @@ let rec view run =
             | None ->
                 [ text "Chroot not created yet." ]
             | Some path ->
-                [ text "Chroot path is " ; config_txt path ]) ]
+                [ text "Chroot path is " ; config_txt path ; text "." ]) ]
     | Docker { image } ->
         div [
           p (
             text "Build a docker instance from image " ::
             config_txt image ::
+            text ". " ::
             match run.docker_instance with
             | None ->
                 [ text "Instance not started yet." ]
             | Some instance ->
-                [ text "Instance is " ; config_txt instance ]) ]
+                [ text "Instance is " ; config_txt instance ; text "." ]) ]
     | Shell { line ; timeout } ->
         div [
           p (
@@ -69,10 +70,11 @@ let rec view run =
             config_txt line ::
             match timeout with
             | None ->
-                []
+                [ text "." ]
             | Some t ->
                 [ text " and time out after " ;
-                  config_txt (string_of_float t) ]) ]
+                  config_txt (string_of_float t) ;
+                  text "." ]) ]
     | GitClone { url ; revision ; directory } ->
         div [
           p (
@@ -82,12 +84,12 @@ let rec view run =
             | None ->
                 []
             | Some rev ->
-                [ text " at revision " ; config_txt rev ]) @
+                [ text " at revision " ; config_txt rev ; text "." ]) @
             (match directory with
             | None ->
                 []
             | Some dir ->
-                [ text " into directory " ; config_txt dir ])) ]
+                [ text " into directory " ; config_txt dir ; text "." ])) ]
     | Wait { subcommand } ->
         div [
           (match run.confirmation_msg with
@@ -120,7 +122,7 @@ let rec view run =
         div [
           p [ text "Retry up to " ;
               config_txt (string_of_int up_to) ;
-              text " times" ] ;
+              text " times." ] ;
           view_subcommand subcommand ]
     | Try { subcommand ; on_failure } ->
         div [
@@ -135,7 +137,8 @@ let rec view run =
     | Some started, None, _ ->
         p ~a:[ class_ "status" ]
           [ text "Started at " ;
-            text (date_of_ts started) ]
+            text (date_of_ts started) ;
+            text "." ]
     | Some started, Some pid, None ->
         p ~a:[ class_ "status" ]
           [ text "Started at " ;
@@ -155,24 +158,25 @@ let rec view run =
     | Some stopped, None ->
         p ~a:[ class_ "status" ]
           [ text "Stopped at " ;
-            text (date_of_ts stopped) ]
+            text (date_of_ts stopped) ;
+            text "." ]
     | Some stopped, Some 0 ->
         p ~a:[ class_ "status" ]
           [ text "Stopped at " ;
             text (date_of_ts stopped) ;
-            br () ;
+            text "." ; br () ;
             txt_span ~a:[ class_ "success" ] "Success" ]
     | Some stopped, Some s when s > 0 ->
         p ~a:[ class_ "status" ]
           [ text "Stopped at " ;
             text (date_of_ts stopped) ;
-            br () ;
+            text "." ; br () ;
             txt_span ~a:[ class_ "failure" ]
               ("Failed with code "^ string_of_int s) ]
     | Some stopped, Some s ->
         p ~a:[ class_ "status" ]
           [ text "Stopped at " ;
             text (date_of_ts stopped) ;
-            br () ;
+            text "." ; br () ;
             txt_span ~a:[ class_ "filled" ]
               ("Killed with signal "^ string_of_int s) ]) ]
