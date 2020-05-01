@@ -11,7 +11,6 @@
 *.pwd
 .depend
 Makefile
-index.html
 src/LurchVersion.ml
 _opam
 *.swp
@@ -29,3 +28,4 @@ src/all_tests.ml
 oUnit-anon.cache
 qtest.targets.log
 docker/www
+www/favicon.png

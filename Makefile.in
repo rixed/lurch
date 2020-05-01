@@ -30,7 +30,7 @@ PACKAGES_CLIENT = \
 PACKAGED_BIN = www/lurch
 INSTALLED_BIN = $(PACKAGED_BIN)
 INSTALLED_LIB =
-INSTALLED_WWW = www/spa.js
+INSTALLED_WWW = www/spa.js www/favicon.png
 
 INSTALLED = $(INSTALLED_BIN) $(INSTALLED_LIB) $(INSTALLED_WWW)
 
@@ -165,6 +165,9 @@ src/LurchCompilConfig.ml: Makefile
 	@echo 'let build_date = "$(shell date -R)"' >> $@
 	@echo 'let build_host = "$(shell hostname)"' >> $@
 
+www/favicon.png: src/lurch.png
+	convert $< -geometry 64x64 $@
+
 # Tests
 
 TESTABLE_SOURCES = \
@@ -225,4 +228,4 @@ clean:
 	$(RM) *.opt src/all_tests.* perf.data* gmon.out
 	$(RM) src/oUnit-anon.cache src/qtest.targets.log
 	$(RM) .depend src/*.opt src/*.byte
-	$(RM) www/lurch www/spa.js
+	$(RM) www/lurch www/spa.js www/favicon.png
