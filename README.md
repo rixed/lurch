@@ -1,10 +1,9 @@
-You rang?
-=========
+# You rang?
 
 A simple open source tool to build automation suitable for automatic tests, deployments, wtv.
 
-Requirements
-------------
+
+## Requirements
 
 1. Run test suite (or any shell command, really) and report status and logs
 
@@ -23,8 +22,8 @@ Requirements
 
 7. DB runs separately
 
-Technical choices
------------------
+
+## Technical choices
 
 . postgresql as a DB
 
@@ -34,11 +33,42 @@ Technical choices
 
 . js_of_ocaml + cohttp
 
-. no authn for now. later use TLS client certs?
+. no authn for now. Later use TLS client certs?
 
 
-Notes
------
+## Build
+
+`./configure && make`
+
+Also compile yourself a **statically linked** [busybox](https://www.busybox.net/) and store it in your `$HOME/bin`
+(Note: look for the `Build static binary` option under `Build options` under the `Settings` option of `make menuconfig`).
+
+
+## Run
+
+### The database
+
+Have a look at `db/create` to check/change the settings and then run it (ignore any NOTICE from psql).
+
+### The lurch daemon
+
+`while sudo www/lurch step --debug ; sleep 10 ; end`
+
+### The WWW CGI interface
+
+Here with lighttpd:
+
+`cd www && lighttpd -f ../examples/lighttpd.conf -D`
+
+You should then be able to access it on port 8081.
+
+It is now a good idea to try to run the three sample programs `test container`, `test chroot` and `test build`.
+
+### Want to run a program regularly?
+
+`while sleep 14400; do www/lurch start 'build+test ramen'; done`
+
+## Notes
 
 Commands must be jailed but yet we do not want to have a real language ; we don't want graphical shell scripts!
 So each "command" must be high level enough that's it's easy to manipulate and understand them. So the initial environment must be rich enough. For instance, busybox isolation must
@@ -70,5 +100,3 @@ So, we want an isolation level "docker" of some image, with the config being the
 name. Every command will then be prefixed with 'docker exec -ti $name'. And from there we
 can do everything else. When preparing the docker for a program, remember to:
 add `-p 9000:9000 -v /var/run/docker.sock:/var/run/docker.sock`.
-
-

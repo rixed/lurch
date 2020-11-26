@@ -8,4 +8,3 @@ Requirements
 * dockerd running on the host with ideally no other VMs (users will have
   access to them) for the docker containment strategy
 * an HTTP server able to run CGI scripts (recommended: lighttpd)
-

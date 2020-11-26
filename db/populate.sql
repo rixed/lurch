@@ -4,7 +4,7 @@
 
 insert into command default values;
 insert into command_git_clone (command, url) values
-  ((select max(id) from command), 'https://github.com/rixed/lurch.git');
+  ((select max(id) from command), 'git://github.com/rixed/lurch.git');
 
 insert into command default values;
 insert into command_shell (command, line) values

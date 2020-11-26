@@ -1,16 +1,23 @@
 #!/bin/sh
 
+# This can be configured:
+
 instance_name=lurchdb
 db_port=5433
 db_pwd=secret
 db_docker_image=postgres
+
+# Create a docker instance of postgres and populate a database:
 
 db_container=$(docker run --name $instance_name -p $db_port:5432 -e POSTGRES_PASSWORD=$db_pwd --detach $db_docker_image)
 
 echo "DB running in docker container $db_container"
 
 echo "Waiting for postgres service..."
-sleep 30
+while ! docker exec $instance_name psql -U postgres -c 'SELECT 1;' ; do
+  sleep 2
+done
+
 docker exec -i $instance_name psql -U postgres -f /dev/stdin --quiet < db/schema.sql
 docker exec -i $instance_name psql -U postgres -f /dev/stdin --quiet < db/populate.sql
 
