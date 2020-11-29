@@ -56,12 +56,12 @@ let bgcolor_of = function
 
 let list_past_runs runs =
   div [
-    let header =
-      simple_table_header
-        [ "program" ; "started" ; "stopped" ; "cpu" ; "mem" ; "outcome" ] in
+    let columns =
+      [ "run#" ; "program" ; "started" ; "stopped" ; "cpu" ; "mem" ; "outcome" ] in
+    let header = simple_table_header columns in
     let footer =
       [ tr [
-        td ~a:[colspan 6] [
+        td ~a:[colspan (List.length columns)] [
           button "more" `GetPastProgramRuns ;
           button "create a new program" `CreateProgram ] ] ] in
     let len = Array.length runs in
@@ -70,7 +70,10 @@ let list_past_runs runs =
       let goto_prog = onclick (fun _ -> `GetProgram r.Api.ListPastRuns.name)
       and goto_run = onclick (fun _ -> `GetRun (r.top_run, [||])) in
       tr (
-        td ~a:[ class_ "click" ; goto_prog ] [ text r.name ] ::
+        td ~a:[ class_ "click" ; goto_run ]
+          [ text ("#"^ string_of_int r.top_run) ] ::
+        td ~a:[ class_ "click" ; goto_prog ]
+          [ text r.name ] ::
         (if r.started = None then
           [ td ~a:[ class_ "click" ; goto_run ; colspan 2 ]
               [ text "waiting" ] ]
@@ -88,7 +91,8 @@ let list_past_runs runs =
                   (option_map string_of_int r.mem_sys |? "n.a") ^" sys") ] ;
           let outcome, color = outcome r.exit_status in
           let bgcolor = bgcolor_of color in
-          td ~a:[ class_ "click" ; goto_run ; bgcolor] [ text outcome ] ]))) ]
+          td ~a:[ class_ "click" ; goto_run ; bgcolor]
+            [ text outcome ] ]))) ]
 
 let list_programs_and_run programs =
   let header =
