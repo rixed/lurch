@@ -32,16 +32,23 @@ let get_program name =
   print_data
 
 (* Programs submitted via the GUI must not exec any non-isolated command: *)
-let check_isolation cmd =
-  Api.Command.(iter (fun cmd ->
-    match cmd.operation with
-    | Shell _ | GitClone _ ->
-        failwith "Programs submitted via the GUI must be isolated"
-    | _ -> ())
-  ) cmd
+let rec check_isolation cmd =
+  match cmd.Api.Command.operation with
+  | Api.Command.Nop | Isolate _ -> ()
+  | Wait { subcommand }
+  | Retry { subcommand } ->
+      check_isolation subcommand
+  | Sequence { subcommands } ->
+      Array.iter check_isolation subcommands
+  | Try { subcommand ; on_failure } ->
+      check_isolation subcommand ;
+      check_isolation on_failure
+  | _ ->
+      failwith "Programs submitted via the GUI must be isolated"
 
 let save_program prev_name program =
   let program = Api.Program.of_json_string program in
+  if program.name = "" then failwith "Programs must have a name" ;
   check_isolation program.command ;
   (match prev_name with
   | None
