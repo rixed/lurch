@@ -96,7 +96,9 @@ asynchronously, as any running command. The only downside is that isolation with
 might not work. But this could be checked at program creation time. Although starting with a seq of 'isolate' commands also make sense. Therefore the isolation command must really be
 propagated down the tree of commands (or looked up following the chain of parents).
 
-So, we want an isolation level "docker" of some image, with the config being the container
-name. Every command will then be prefixed with 'docker exec -ti $name'. And from there we
-can do everything else. When preparing the docker for a program, remember to:
-add `-p 9000:9000 -v /var/run/docker.sock:/var/run/docker.sock`.
+So, we want an isolation level "docker" of some image, with the config being
+the container name. Every command will then be prefixed with 'docker exec -ti
+$name'. And from there we can do everything else. To be able to build a docker
+image for a program from within such a docker isolation scheme, remember to:
+add `-v /var/run/docker.sock:/var/run/docker.sock` so the docker client in
+docker image can talk to the docker server in the host.

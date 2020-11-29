@@ -24,8 +24,7 @@ let create isolation_id image =
     command_output
       ("docker run -d --init \
          --name "^ shell_quote instance ^" \
-         -P -p 9000:9000 \
-         -v /var/run/docker.sock:/var/run/docker.sock \
+         -P -v /var/run/docker.sock:/var/run/docker.sock \
          --rm --entrypoint /bin/sleep "^
          shell_quote image ^" 3600") in
   Db.DockerInstance.insert isolation_id instance docker_id
