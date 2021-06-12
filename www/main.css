@@ -93,6 +93,9 @@ table {
   /* Layout */
   width: 100%;
 }
+table.logs {
+  border-collapse: collapse;
+}
 tr:nth-child(odd) {
   /* Colors */
   background-color: var(--tr-bg-color-odd);
@@ -121,7 +124,35 @@ td.time {
 td.logline {
   /* Layout */
   white-space: nowrap;
+  /* Same colors as the linux terminal */
+  background-color: black;
+  color: white;
+  font-family: Inconsolata, monospace;
 }
+/* ANSI graphic modes for logs */
+.ansi-bold { font-weight: bold; }
+.ansi-faint { font-weight: lighter; }
+.ansi-italic { font-style: italic; }
+.ansi-underline { text-decoration: underline; }
+.ansi-blink { text-decoration: blink; }
+.ansi-reverse { filter: invert(100%); }
+.ansi-strike { text-decoration:line-through; }
+.ansi-fg-color-0 { color: #000; }
+.ansi-fg-color-1 { color: #A00; }
+.ansi-fg-color-2 { color: #0A0; }
+.ansi-fg-color-3 { color: #A50; }
+.ansi-fg-color-4 { color: #00A; }
+.ansi-fg-color-5 { color: #A0A; }
+.ansi-fg-color-6 { color: #0AA; }
+.ansi-fg-color-7 { color: #AAA; }
+.ansi-bg-color-0 { background-color: #000; }
+.ansi-bg-color-1 { background-color: #A00; }
+.ansi-bg-color-2 { background-color: #0A0; }
+.ansi-bg-color-3 { background-color: #A50; }
+.ansi-bg-color-4 { background-color: #00A; }
+.ansi-bg-color-5 { background-color: #A0A; }
+.ansi-bg-color-6 { background-color: #0AA; }
+.ansi-bg-color-7 { background-color: #AAA; }
 
 /* Run */
 

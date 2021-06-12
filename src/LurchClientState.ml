@@ -15,6 +15,7 @@ type location =
   | ConfirmDeleteProgram of
       { program : Program.t }
   | ShowRun of { run : Api.Run.t }
+  | Test
 
 type 'msg state =
   { (* Define the main location. This is basically a list of things: *)

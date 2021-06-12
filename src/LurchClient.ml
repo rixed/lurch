@@ -31,6 +31,8 @@ let view_of_location =
       Views.program_confirm_deletion program
   | ShowRun { run } ->
       Views.show_run run
+  | Test ->
+      Views.test
 
 let view st =
   div [
@@ -76,6 +78,8 @@ let oldest_top_run = function
       None
 
 let update st = function
+  | `Test ->
+      return State.{ st with location = Test }
   | `SetDialog dialog ->
       return State.{ st with dialog ; refresh_msg = None }
   | `MaybeRefresh refresh_msg ->

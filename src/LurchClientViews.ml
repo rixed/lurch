@@ -251,7 +251,7 @@ let show_run run =
               [ button "more" (`GetMoreLogs run) ] ] ]
         else [] in
       let len = Array.length run.logs in
-      table ~header ~footer (List.init len (fun i ->
+      table ~a:[ class_ "logs" ] ~header ~footer (List.init len (fun i ->
         let l = run.logs.(i) in
         tr [
           td ~a:[ class_ "click" ;
@@ -261,4 +261,26 @@ let show_run run =
             [ txt_span ~a:[ class_ "click" ] ("#"^ string_of_int l.run) ] ;
           td [ text (filename_of_fd l.fd) ] ;
           td ~a:[ class_ "time" ] [ text (date_of_ts l.time) ] ;
-          td ~a:[ class_ "logline" ] [ text l.line ] ])) ]
+          td ~a:[ class_ "logline" ] (dom_of_ansi l.line) ])) ]
+
+let test =
+  div [
+    text "Simplest:" ;
+    div (dom_of_ansi "bla") ;
+    text "Empty:" ;
+    div (dom_of_ansi "") ;
+    text "Some colors:" ;
+    div (dom_of_ansi "this is \027[32mcolo\027[31mred\027[0m.") ;
+    text "Some background change:" ;
+    div (dom_of_ansi "this is \027[32;44mcolo\027[47;31mred\027[0m.") ;
+    text "Example #1 from real logs:" ;
+    div (dom_of_ansi "\027[1;32m19h15m18:\027[0m Max FPR test") ;
+    text "Example #2 from real logs:" ;
+    div (dom_of_ansi "\027[32;1mSUCCESS\027[0m") ;
+    text "Example #3 from real logs:" ;
+    div (dom_of_ansi "\027[1;32m17h28m23:\027[0m\027[1;34m groups/f: \027[0m: Starting...") ;
+    text "Some unknown sequence:" ;
+    div (dom_of_ansi "this is \027[1;2;3;4zINVALID") ;
+    text "Short reset:" ;
+    div (dom_of_ansi "this is \027[32mcolored\027[m and then not.") ;
+  ]

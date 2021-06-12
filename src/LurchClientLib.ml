@@ -48,17 +48,19 @@ let filename_of_fd = function
  * View
  *)
 
-let no_elt = elt "span" []
+let span ?key ?a l = elt "span" ?key ?a l
+
+let no_elt = span []
 
 let label ?key ?a l = elt "label" ?key ?a l
 
 let br ?key ?a () = elt "br" ?key ?a []
 
-let h1  ?key ?a l = elt "h1" ?key ?a l
+let h1 ?key ?a l = elt "h1" ?key ?a l
 
-let h2  ?key ?a l = elt "h2" ?key ?a l
+let h2 ?key ?a l = elt "h2" ?key ?a l
 
-let h3  ?key ?a l = elt "h3" ?key ?a l
+let h3 ?key ?a l = elt "h3" ?key ?a l
 
 let ul ?key ?a l = elt "ul" ?key ?a l
 
@@ -183,6 +185,75 @@ let edit_text ?id ?key ?(a=[]) editor str =
     textarea ?key ~a [ text str ]
   else
     pre ?key ~a:(class_ "editable" :: a) [ text str ]
+
+let is_digit c =
+  c >= '0' && c <= '9'
+
+let digit_of_char c =
+  Char.code c - Char.code '0'
+
+let identity x = x
+
+let dom_of_ansi s =
+  let escape = '\027' in
+  let len = String.length s in
+  let dom_of_sgr =
+    let s w v = span ~a:[ class_ ("ansi-" ^ w) ] [ v ] in
+    function
+    | 1 -> s "bold"
+    | 2 -> s "faint"
+    | 3 -> s "italic"
+    | 4 -> s "underline"
+    | 5 | 6 -> s "blink"
+    | 7 -> s "reverse"
+    | 9 -> s "strike"
+    | 30 -> s "fg-color-0" | 31 -> s "fg-color-1" | 32 -> s "fg-color-2"
+    | 33 -> s "fg-color-3" | 34 -> s "fg-color-4" | 35 -> s "fg-color-5"
+    | 36 -> s "fg-color-6" | 37 -> s "fg-color-7"
+    | 40 -> s "bg-color-0" | 41 -> s "bg-color-1" | 42 -> s "bg-color-2"
+    | 43 -> s "bg-color-3" | 44 -> s "bg-color-4" | 45 -> s "bg-color-5"
+    | 46 -> s "bg-color-6" | 47 -> s "bg-color-7"
+    | _ -> identity in
+  let rec loop html to_html start i =
+    let append stop =
+      to_html (String.sub s start (stop - start)) :: html in
+    if i >= len then append i |> List.rev else
+    if i < len - 2 && s.[i] = escape && s.[i+1] = '[' then
+      let stop = i in
+      let i = i + 2 in
+      let cmd, params, i =
+        let rec read_sgr params i =
+          if i < len - 1 && is_digit s.[i] then
+            let p = digit_of_char s.[i] in
+            let i = i + 1 in
+            let p, i =
+              if i < len - 1 && is_digit s.[i] then
+                p * 10 + digit_of_char s.[i],
+                i + 1
+              else
+                p, i in
+            let params = p :: params in
+            if i < len - 1 && s.[i] = ';' then read_sgr params (i + 1)
+            else s.[i], params, i + 1
+          else if i < len - 1 && s.[i] = ';' then
+            read_sgr (0 :: params) (i + 1)
+          else
+            s.[i], params, i + 1 in
+        read_sgr [] i in
+      let html, to_html, start =
+        if cmd = 'm' then
+          append stop,
+          List.fold_left (fun dom_of_str p ->
+            fun str -> (dom_of_sgr p) (dom_of_str str)
+          ) text params,
+          i
+        else
+          (* ignore that sequence and display it as if it were normal text *)
+          html, to_html, start in
+      loop html to_html start i
+    else
+      loop html to_html start (i + 1) in
+  loop [] text 0 0
 
 (*
  * AJAX
