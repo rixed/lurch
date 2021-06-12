@@ -198,7 +198,8 @@ struct
            extract(epoch from r.started), \
            extract(epoch from r.stopped), \
            r.cgroup, r.pid, r.exit_status, \
-           array(select id from run where parent_run = r.id) as children, \
+           array(select id from run where parent_run = r.id order by id) \
+             as children, \
            w.message, c.path, d.instance, d.docker_id \
          from run r \
          join run rtop on rtop.id = coalesce(r.top_run, r.id) \
