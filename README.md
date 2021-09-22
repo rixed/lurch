@@ -31,17 +31,29 @@ A simple open source tool to build automation suitable for automatic tests, depl
 
 . quick ocaml similar implementation of server/client can also helps with sharing data between the server and the SPA
 
-. js_of_ocaml + cohttp
+. js_of_ocaml + a CGI able external HTTP server that also perform authn
 
-. no authn for now. Later use TLS client certs?
+. no capability for now. Later use TLS client certs?
 
 
 ## Build
 
-`./configure && make`
+### Requirements
 
-Also compile yourself a **statically linked** [busybox](https://www.busybox.net/) and store it in your `$HOME/bin`
+1. Compile yourself a **statically linked** [busybox](https://www.busybox.net/) and store it in your `$HOME/bin`
 (Note: look for the `Build static binary` option under `Build options` under the `Settings` option of `make menuconfig`).
+It will be used for the chroot containment strategy.
+
+2. cgcreate/cgdelete tools (from Debian package cgroup-tools), and a cgroup lurch given to the user:
+    cgcreate -a $user -t $user -g cpuacct,memory:lurch
+
+3. dockerd running on the host with ideally no other VMs (users will have access to them) for the docker containment strategy.
+
+4. an HTTP server able to run CGI scripts (recommended: lighttpd, see a possible configuration in examples/lighttpd.conf)
+
+### Build commands
+
+`./configure && make`
 
 
 ## Run
@@ -52,7 +64,7 @@ Have a look at `db/create` to check/change the settings and then run it (ignore 
 
 ### The lurch daemon
 
-`while sudo www/lurch step --debug ; sleep 10 ; end`
+`while sudo www/lurch step --debug ; do sleep 10 ; done`
 
 ### The WWW CGI interface
 

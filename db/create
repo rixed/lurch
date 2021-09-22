@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 # This can be configured:
 
 instance_name=lurchdb
@@ -14,12 +16,19 @@ db_container=$(docker run --name $instance_name -p $db_port:5432 -e POSTGRES_PAS
 echo "DB running in docker container $db_container"
 
 echo "Waiting for postgres service..."
-while ! docker exec $instance_name psql -U postgres -c 'SELECT 1;' ; do
-  sleep 2
+while ! docker exec $instance_name psql --quiet -U postgres -c 'SELECT 1;' > /dev/null 2>&1 ; do
+  echo 'Waiting some more...'
+  sleep 1
 done
 
-docker exec -i $instance_name psql -U postgres -f /dev/stdin --quiet < db/schema.sql
-docker exec -i $instance_name psql -U postgres -f /dev/stdin --quiet < db/populate.sql
+echo 'Creating database (message about DB not existing is OK)...'
+docker exec -i $instance_name psql --quiet -U postgres -f /dev/stdin --quiet < db/schema.sql
+
+echo 'Populating database...'
+docker exec -i $instance_name psql --quiet -U postgres -f /dev/stdin --quiet < db/populate.sql
 
 # Also:
-sudo cgcreate -a rixed -t rixed -g cpuacct,memory:lurch
+echo 'Creating cgroup'
+sudo cgcreate -a "$USER" -t "$USER" -g cpuacct,memory:lurch
+
+echo 'Done.'
