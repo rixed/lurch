@@ -278,7 +278,7 @@ let run_http ?(command="GET") ?(content_type="text/plain")
           callback resp
        | _ -> ()) ;
   set_request_header r "Content-Type" content_type ;
-  send r payload
+  send r (Ojs.string_to_js payload)
 
 let run_http_get ~url ~callback () =
   run_http ~url ~callback ()

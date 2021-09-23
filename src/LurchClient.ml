@@ -52,11 +52,19 @@ let view st =
 open Js_browser
 
 (* Custom commands *)
+
+(* This work around required by what appears to be a compiler bug, complaining that:
+ * File "src/LurchClient.ml", line 208, characters 19-26:
+ * Error: The record field url_del belongs to the type 'a Http_del
+ *        but is mixed here with fields of type 'weak11 Http_del
+ *               The type constructor Http_del would escape its scope *)
+type 'msg http_del_p = { url : string ; callback : api_response -> 'msg }
+
 type 'msg Vdom.Cmd.t +=
   | Initialize of (unit -> 'msg) (* hide actual type for 'msg *)
   | Http_get of { url : string ; callback : api_response -> 'msg }
   | Http_put of { url : string ; payload : string ; callback : api_response -> 'msg }
-  | Http_del of { url : string ; callback : api_response -> 'msg }
+  | Http_del of 'msg http_del_p
   | After of int * 'msg
 
 let lurch_url page params =

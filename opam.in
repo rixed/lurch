@@ -21,12 +21,13 @@ depends: [
   "js_of_ocaml"
   "js_of_ocaml-ppx"
   "js_of_ocaml-ppx_deriving_json"
+  "ppx_deriving" # missing from js_of_ocaml-ppx_deriving_json deps
   "ocamlfind" {build & >= "1.8.0"}
   "postgresql"
   "qtest" {with-test}
   "syslog" {>= "1.5"}
-  "ocaml" {< "4.08.0"} # Because of vdom -> gen_js_api
-  "ocaml-vdom"
+  "ocaml" {>= "4.08.0"} # Because of vdom v0.2
+  "ocaml-vdom" {>= "0.2"}
 ]
 depexts: [
   [["debian"]
