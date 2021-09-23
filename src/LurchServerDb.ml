@@ -323,11 +323,10 @@ module ListLogLines =
 struct
   (* [run] might be the id of the top run we want all logs for, or an
    * individual run. *)
-  let get ?since ?offset ?limit ~run =
+  let get ?offset ?limit ~run =
     let cnx = get_cnx () in
     let params =
       [| string_of_int run ;
-         string_of_float (since |? 0.) ;
          string_of_int (offset |? 0) ;
          (* [limit NULL] is equivalent to no limit: *)
          Option.map_default string_of_int null limit |] in
@@ -339,9 +338,8 @@ struct
                 extract(epoch from time), line \
          from list_loglines \
          where run in (select id from run where id = $1 or top_run = $1) \
-               and time > to_timestamp($2) \
          order by time \
-         offset $3 limit $4" in
+         offset $2 limit $3" in
     Enum.init res#ntuples (fun i ->
       let getv conv j = conv (res#getvalue i j) in
       log.debug "Got tuple %a" (Array.print String.print) (res#get_tuple i) ;

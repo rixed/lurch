@@ -242,17 +242,24 @@ let show_run run =
       | _ ->
           no_elt ] ;
     h2 [ text "Logs" ] ;
-      let header =
-        simple_table_header [ "run" ; "file" ; "time" ; "text" ] in
-      let footer =
-        if run.stopped = None then
-          [ tr [
-            td ~a:[colspan 4]
-              [ button "more" (`GetMoreLogs run) ] ] ]
-        else [] in
-      let len = Array.length run.logs in
-      table ~a:[ class_ "logs" ] ~header ~footer (List.init len (fun i ->
-        let l = run.logs.(i) in
+    let header =
+      simple_table_header [ "run" ; "file" ; "time" ; "text" ] in
+    let footer =
+      if run.stopped = None then
+        [ tr [
+          td ~a:[colspan 4]
+            [ button "more" (`GetMoreLogs run) ] ] ]
+      else [] in
+    let len = Array.length run.logs in
+    let last_tr =
+      tr [
+        td ~a:[ id_ "bottom" ; colspan 4 ; class_ "bottom-of-logs" ]
+           [ text "more logs arriving..." ] ] in
+    let rec trs acc i =
+      (* Build the list in reverse order to ensure tail-rec: *)
+      if i < 0 then acc else
+      let l = run.logs.(i) in
+      let acc =
         tr [
           td ~a:[ class_ "click" ;
                   onclick (fun _ -> `GetRun (l.run, [||])) ]
@@ -261,7 +268,9 @@ let show_run run =
             [ txt_span ~a:[ class_ "click" ] ("#"^ string_of_int l.run) ] ;
           td [ text (filename_of_fd l.fd) ] ;
           td ~a:[ class_ "time" ] [ text (date_of_ts l.time) ] ;
-          td ~a:[ class_ "logline" ] (dom_of_ansi l.line) ])) ]
+          td ~a:[ class_ "logline" ] (dom_of_ansi l.line) ] :: acc in
+      trs acc (i - 1) in
+    table ~a:[ class_ "logs" ] ~header ~footer (trs [ last_tr ] (len - 1)) ]
 
 let test =
   div [

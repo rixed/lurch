@@ -85,7 +85,10 @@ let oldest_top_run = function
   | _ ->
       None
 
-let update st = function
+let update =
+  (* How many log lines to ask in one batch: *)
+  let logs_limit = 500 in
+  fun st -> function
   | `Test ->
       return State.{ st with location = Test }
   | `SetDialog dialog ->
@@ -248,7 +251,7 @@ let update st = function
         State.{ st with dialog = ShowRun { run } }
   | `GetMoreLogs run ->
       let offset = Array.length run.Api.Run.logs
-      and limit = 100 in
+      and limit = logs_limit in
       log ("GetMoreLogs: currently have "^ string_of_int offset ^" lines") ;
       let ajax =
         let params = [ "run", string_of_int run.id ;
@@ -260,18 +263,19 @@ let update st = function
   | `GotMoreLogs (Error e, _) ->
       return State.{ st with dialog = ShowError e ; waiting = false }
   | `GotMoreLogs (Ok res, top_run) ->
-      log "Got logs!" ;
-      log_js (Js_browser.JSON.parse res) ;
       let res = Api.LogLine.array_of_json_string res in
+      let len = Array.length res in
+      log ("Got "^ string_of_int len ^" log lines!") ;
       (match st.State.dialog with
       | ShowRun { run } when run.Api.Run.id = top_run.Api.Run.id ->
           let run = { run with logs = Array.append run.logs res } in
           let refresh_msg = `GetRun (run.id, run.logs) in
-          (* Periodically recall GetRun: *)
-          (* TODO: ajax call a long pull *)
           let c =
-            (* FIXME: reloading more logs reset viewport to top of the page *)
-            if false && run.stopped = None then
+            (* Keep asking for logs as long as the run is not complete or we
+             * haven't got all log lines: *)
+            if len >= logs_limit then
+              [ Vdom.Cmd.echo (`GetMoreLogs run) ]
+            else if run.stopped = None then
               [ After (1000, `MaybeRefresh refresh_msg) ]
             else
               []
