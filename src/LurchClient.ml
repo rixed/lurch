@@ -247,18 +247,14 @@ let update st = function
       return ~c:[Vdom.Cmd.echo (`GetMoreLogs run)]
         State.{ st with dialog = ShowRun { run } }
   | `GetMoreLogs run ->
-      (* FIXME: since is always 0 when refreshing because this run has always
-       * 0 lines then, whereas the `More` button work as expected.
-       * Instead of auto-refreshing, make that more button use the timeout
-       * on its own to do the right thing? *)
-      let since =
-        let len = Array.length run.Api.Run.logs in
-        log ("GetMoreLogs: currently have "^ string_of_int len ^" lines") ;
-        if len = 0 then 0. else run.logs.(len-1).Api.LogLine.time in
+      let offset = Array.length run.Api.Run.logs
+      and limit = 100 in
+      log ("GetMoreLogs: currently have "^ string_of_int offset ^" lines") ;
       let ajax =
         let params = [ "run", string_of_int run.id ;
-                       "since", string_of_float since ] in
-        Http_get { url = lurch_url "get_more_logs" params ;
+                       "offset", string_of_int offset ;
+                       "limit", string_of_int limit ] in
+        Http_get { url = lurch_url "get_logs" params ;
                    callback = fun r -> `GotMoreLogs (r, run) } in
       return ~c:[ajax] State.{ st with waiting = true }
   | `GotMoreLogs (Error e, _) ->
@@ -269,9 +265,9 @@ let update st = function
       let res = Api.LogLine.array_of_json_string res in
       (match st.State.dialog with
       | ShowRun { run } when run.Api.Run.id = top_run.Api.Run.id ->
-          (* Periodically recall GetRun: *)
-          let refresh_msg = `GetRun (top_run.id, top_run.logs) in
           let run = { run with logs = Array.append run.logs res } in
+          let refresh_msg = `GetRun (run.id, run.logs) in
+          (* Periodically recall GetRun: *)
           (* TODO: ajax call a long pull *)
           let c =
             (* FIXME: reloading more logs reset viewport to top of the page *)

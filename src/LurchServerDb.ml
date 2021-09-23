@@ -39,9 +39,6 @@ let close () =
 let sql_quote s =
   "\""^ s ^"\""
 
-(* This is the maximum timestamp postgres will accept: *)
-let max_ts = 2_147_483_647.
-
 let or_null conv = function
   | None -> null
   | Some v -> conv v
@@ -326,11 +323,14 @@ module ListLogLines =
 struct
   (* [run] might be the id of the top run we want all logs for, or an
    * individual run. *)
-  let get run since =
+  let get ?since ?offset ?limit ~run =
     let cnx = get_cnx () in
     let params =
       [| string_of_int run ;
-         string_of_float (since |? max_ts) |] in
+         string_of_float (since |? 0.) ;
+         string_of_int (offset |? 0) ;
+         (* [limit NULL] is equivalent to no limit: *)
+         Option.map_default string_of_int null limit |] in
     let res =
       (* This awful query to circumvent the query planer insisting on seq-scanning
        * the logline table regardless of stats: *)
@@ -340,7 +340,8 @@ struct
          from list_loglines \
          where run in (select id from run where id = $1 or top_run = $1) \
                and time > to_timestamp($2) \
-         order by time" in
+         order by time \
+         offset $3 limit $4" in
     Enum.init res#ntuples (fun i ->
       let getv conv j = conv (res#getvalue i j) in
       log.debug "Got tuple %a" (Array.print String.print) (res#get_tuple i) ;

@@ -58,8 +58,8 @@ let save_program prev_name program =
       Db.Program.update program prev_name) ;
   get_program program.name
 
-let get_more_logs run since =
-  Db.ListLogLines.get run since |>
+let get_logs ?since ?offset ?limit ~run =
+  Db.ListLogLines.get ?since ?offset ?limit ~run |>
   Array.of_enum |>
   Api.LogLine.array_to_json_buffer |>
   print_data
@@ -103,12 +103,14 @@ let serve () =
         let program = Cgi.read_body () in
         let prev_name = get_opt_param "prev_name" identity in
         save_program prev_name program
-    | "get_more_logs" ->
+    | "get_logs" ->
         (* We might ask for all the logs for this top_run, or all the logs for
          * a particular run, both with the run parameter. *)
         let run = get_param "run" int_of_string
-        and since = get_opt_param "since" float_of_string in
-        get_more_logs run since
+        and since = get_opt_param "since" float_of_string
+        and offset = get_opt_param "offset" int_of_string
+        and limit = get_opt_param "limit" int_of_string in
+        get_logs ?since ?offset ?limit ~run
     | "get_run" ->
         let run_id = get_param "id" int_of_string in
         get_run run_id
