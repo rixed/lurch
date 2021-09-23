@@ -196,7 +196,7 @@ let program_editor program editor last_runs =
           if r.started = None then
             [ td ~a:[ colspan 2 ] [ text "waiting" ] ]
           else
-            [ td ~a:[ class_ "time" ] 
+            [ td ~a:[ class_ "time" ]
                 [ text (date_of_ts (option_get r.started)) ] ;
               td ~a:[ class_ "time" ]
                 [ text (date_of_tsn r.stopped |? "running") ] ] @

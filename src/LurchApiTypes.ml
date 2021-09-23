@@ -118,7 +118,7 @@ struct
       (* Children are reified here because it makes displaying runs much
        * easier for the client: *)
       children : t array ;
-      (* Populated by a specific call "get_more_logs": *)
+      (* Initially empty, populated by a specific call "get_logs": *)
       logs : LogLine.t array ;
       (* This depends on the command. They are *not* updated when the
        * server insert a new confirmation etc, but that's OK because they

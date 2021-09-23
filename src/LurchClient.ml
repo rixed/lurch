@@ -285,6 +285,7 @@ let update st = function
                       waiting = false ;
                       refresh_msg = Some refresh_msg }
       | ShowRun { run } ->
+          (* FIXME: why is it an error? Why not simply get this run's logs? *)
           let err_msg = string_of_int run.id ^" <> "^ string_of_int top_run.id in
           return State.{ st with dialog = ShowError err_msg ; waiting = false }
       | _ ->
