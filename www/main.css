@@ -123,7 +123,7 @@ td.time {
 }
 td.logline {
   /* Layout */
-  white-space: nowrap;
+  white-space: pre;
   /* Same colors as the linux terminal */
   background-color: black;
   color: white;

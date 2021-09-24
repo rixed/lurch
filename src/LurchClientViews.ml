@@ -219,7 +219,7 @@ let info label def =
     txt_span ~a:[ class_ "info-label" ] label ;
     text ": " ; def ]
 
-let show_run run =
+let show_run run more_logs_expected =
   div [
     h2 [ text ("Details of Run #"^ string_of_int run.Api.Run.id) ] ;
     div [
@@ -254,7 +254,8 @@ let show_run run =
     let last_tr =
       tr [
         td ~a:[ id_ "bottom" ; colspan 4 ; class_ "bottom-of-logs" ]
-           [ text "more logs arriving..." ] ] in
+           [ text (if more_logs_expected then "more logs arriving..."
+                                         else "-- end of logs --") ] ] in
     let rec trs acc i =
       (* Build the list in reverse order to ensure tail-rec: *)
       if i < 0 then acc else

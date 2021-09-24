@@ -29,8 +29,8 @@ let view_of_location =
       Views.program_editor program editor last_runs
   | ConfirmDeleteProgram { program } ->
       Views.program_confirm_deletion program
-  | ShowRun { run } ->
-      Views.show_run run
+  | ShowRun { run ; more_logs_expected } ->
+      Views.show_run run more_logs_expected
   | Test ->
       Views.test
 
@@ -234,7 +234,8 @@ let update =
       log_js (Js_browser.JSON.parse res) ;
       let run = Api.Run.of_json_string res in
       return ~c:[Vdom.Cmd.echo (`GetMoreLogs run)]
-        State.{ st with dialog = ShowRun { run } ; waiting = false }
+        State.{ st with dialog = ShowRun { run ; more_logs_expected = true } ;
+                        waiting = false }
   | `GetRun (run_id, logs) ->
       let ajax =
         Http_get { url = lurch_url "get_run" [ "id", string_of_int run_id ] ;
@@ -248,7 +249,7 @@ let update =
       log_js (Js_browser.JSON.parse res) ;
       let run = { (Api.Run.of_json_string res) with logs } in
       return ~c:[Vdom.Cmd.echo (`GetMoreLogs run)]
-        State.{ st with dialog = ShowRun { run } }
+        State.{ st with dialog = ShowRun { run ; more_logs_expected = true } }
   | `GetMoreLogs run ->
       let offset = Array.length run.Api.Run.logs
       and limit = logs_limit in
@@ -270,21 +271,21 @@ let update =
       | ShowRun { run } when run.Api.Run.id = top_run.Api.Run.id ->
           let run = { run with logs = Array.append run.logs res } in
           let refresh_msg = `GetRun (run.id, run.logs) in
-          let c =
+          let c, more_logs_expected =
             (* Keep asking for logs as long as the run is not complete or we
              * haven't got all log lines: *)
             if len >= logs_limit then
-              [ Vdom.Cmd.echo (`GetMoreLogs run) ]
+              [ Vdom.Cmd.echo (`GetMoreLogs run) ], true
             else if run.stopped = None then
-              [ After (1000, `MaybeRefresh refresh_msg) ]
+              [ After (1000, `MaybeRefresh refresh_msg) ], true
             else
-              []
+              [], false
           in
           return ~c
-            State.{ st with dialog = ShowRun { run } ;
+            State.{ st with dialog = ShowRun { run ; more_logs_expected } ;
                       waiting = false ;
                       refresh_msg = Some refresh_msg }
-      | ShowRun { run } ->
+      | ShowRun { run ; _ } ->
           (* FIXME: why is it an error? Why not simply get this run's logs? *)
           let err_msg = string_of_int run.id ^" <> "^ string_of_int top_run.id in
           return State.{ st with dialog = ShowError err_msg ; waiting = false }

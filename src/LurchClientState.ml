@@ -14,7 +14,7 @@ type location =
         last_runs : Api.ListPastRuns.ts }
   | ConfirmDeleteProgram of
       { program : Program.t }
-  | ShowRun of { run : Api.Run.t }
+  | ShowRun of { run : Api.Run.t ; more_logs_expected : bool }
   | Test
 
 type 'msg state =
