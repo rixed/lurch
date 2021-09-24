@@ -97,7 +97,7 @@ insert into command_sequence (command, subcommands) values
 
 insert into command default values;
 insert into command_docker (command, image) values
-  ((select max(id) from command), 'rixed/ramen-dev:buster');
+  ((select max(id) from command), 'rixed/ramen-dev:latest');
 
 insert into command default values;
 insert into command_isolate (command, builder, subcommand) values
