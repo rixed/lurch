@@ -151,6 +151,7 @@ create table logline (
 );
 
 create index if not exists logline_run on logline using hash (run);
+create index if not exists logline_time on logline (time);
 
 -- Where to store that a command_wait has been confirmed:
 create table wait_confirmed (
