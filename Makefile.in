@@ -25,6 +25,9 @@ PACKAGES_SERVER = \
 PACKAGES_CLIENT = \
 	js_of_ocaml,js_of_ocaml-ppx,js_of_ocaml-ppx_deriving_json,ocaml-vdom
 
+PACKAGES_BOTH = \
+	batteries,cgi,cmdliner,findlib,js_of_ocaml,js_of_ocaml-ppx,js_of_ocaml-ppx_deriving_json,ocaml-vdom,postgresql,syslog
+
 # `make` should compile and install everything, yet to build the deb or
 # tarball RmAdmin is not needed:
 PACKAGED_BIN = www/lurch
@@ -87,17 +90,29 @@ SOURCES = $(sort \
 
 # Generic rules:
 
-%.cmx %.cmt: %.ml
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -package '$(PACKAGES_SERVER)' -c $<
-
 %.html: %.adoc
 	asciidoc -a data-uri -a icons -a toc -a max-width=55em --theme volnitsky -o $@ $<
+
+# We want server-only sources to be compiled only with server libs (and -thread,
+# required by the postgresql bindings), and client-only sources compiled only
+# with client libs. But files that are common to both client and server must
+# have the full set of libraries so that the cmi files are interchangeable, and
+# can therefore be reused when remaking files:
+
+LurchServer%.cmx LurchServer%.cmt: LurchServer%.ml
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -package '$(PACKAGES_SERVER)' -c $<
+
+%.cmx %.cmt: %.ml
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -package '$(PACKAGES_BOTH)' -c $<
+
+%.cmo %.cmt: %.ml
+	$(OCAMLC) $(OCAMLCFLAGS) -thread -package '$(PACKAGES_BOTH)' -c $<
 
 %.cmi: %.cmx
 	@true
 
 # JS client uses js_of_ocaml:
-%.cmo %.cmt: %.ml
+LurchClient%.cmo LurchClient%.cmt: LurchClient%.ml
 	$(OCAMLC) $(OCAMLCFLAGS) -package '$(PACKAGES_CLIENT)' -c $<
 
 # Dependencies
@@ -107,7 +122,7 @@ dep:
 	$(MAKE) .depend
 
 .depend: $(SOURCES)
-	$(OCAMLDEP) -I src -package '$(PACKAGES_SERVER)' $(filter %.ml, $(SOURCES)) $(filter %.mli, $(SOURCES)) > $@
+	$(OCAMLDEP) -I src -package '$(PACKAGES_BOTH)' $(filter %.ml, $(SOURCES)) $(filter %.mli, $(SOURCES)) > $@
 
 include .depend
 
