@@ -431,10 +431,6 @@ let step_isolation () =
               Db.LogLine.insert isolate.id 1 line ;
               Db.Run.stop isolate.id status)
       | [| isolation_run ; subrun |] ->
-          Printf.sprintf "subcommand completed as run #%d \
-                          (whereas isolation run was #%d)"
-            subrun.Api.Run.id  isolation_run.id |>
-          Db.LogLine.insert isolate.id 1 ;
           let stop_with_stats isolate status =
             (* Use the stats of the docker container started by isolation_run
              * as the stats of the subrun: *)
