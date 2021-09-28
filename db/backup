@@ -1,0 +1,31 @@
+#!/bin/sh
+
+set -e
+
+# Must match what's in db/create:
+instance_name=lurchdb
+db_port=5433
+db_name=lurch
+
+backup_dir=/mnt/backup-server/backups/lurch/db
+
+# Check backup_dir does indeed exist, or the backup disk might not be mounted:
+if ! test -d "$backup_dir"; then
+  echo "Backup directory ($backup_dir) does not exist: not mounted?"
+  exit 1
+fi
+
+echo -n "Backing up... "
+
+dest="$backup_dir/$(date +%Y-%m-%d_%H:%M).sql.gz"
+
+docker exec -i $instance_name pg_dump -U postgres -d "$db_name" | gzip > "$dest".tmp &&
+mv "$dest".tmp "$dest"
+
+echo Done
+
+# Note: restore with:
+#
+# docker exec -i $instance_name dropdb -U postgres -d "$db_name" &&
+# db/create &&
+# zcat $dest | docker exec -i $instance_name psql -U postgres -d "$db_name"

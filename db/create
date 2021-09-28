@@ -2,7 +2,7 @@
 
 set -e
 
-# This can be configured:
+# This can be configured, and match what's in db/backup:
 
 instance_name=lurchdb
 db_port=5433
