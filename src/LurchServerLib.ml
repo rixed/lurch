@@ -90,12 +90,12 @@ let todo what =
 let unknown () =
   let err_msg = "No such resource" in
   Cgi.header ~status:404 ~err_msg () ;
-  print_string "<p>You rang?</p>"
+  print_string "You rang?"
 
 let missing_parameter p =
   let err_msg = "Missing parameter" in
   Cgi.header ~status:400 ~err_msg () ;
-  print_string ("<p>Missing parameter "^ p ^"</p>")
+  print_string ("Missing parameter "^ p)
 
 let array_find_mapi f a =
   let res = ref None in

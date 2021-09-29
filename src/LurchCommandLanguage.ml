@@ -13,7 +13,7 @@ let char_is_whitespace = function
 let option_map f = function
   | None -> None
   | Some v -> Some (f v)
-  
+
 let rec tok str res i =
   let ctx = match res with (ctx, _)::_ -> ctx | [] -> Blank in
   if i >= String.length str then List.rev res
