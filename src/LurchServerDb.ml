@@ -43,11 +43,13 @@ let or_null conv = function
   | None -> null
   | Some v -> conv v
 
-let array s =
-  (* Start by removing the '{}': *)
+let list s =
   assert (String.length s >= 2) ;
   let s = String.sub s 1 (String.length s - 2) in
-  String.split_on_char ',' s |> List.filter ((<>) "") |> Array.of_list
+  String.split_on_char ',' s |> List.filter ((<>) "")
+
+let array =
+  Array.of_list % list
 
 let bool_of_string = function
   | "t" -> true
@@ -99,7 +101,7 @@ struct
                 timeout = getn float_of_string 2 }
           | 6 ->
               Api.Command.Sequence
-                { subcommands = Array.map (get % int_of_string) (array (getv 1)) }
+                { subcommands = List.map (get % int_of_string) (list (getv 1)) }
           | 7 ->
               Api.Command.Retry
                 { subcommand = get (int_of_string (getv 1)) ;
@@ -143,7 +145,7 @@ struct
           [| "subcommand", insert_or_update subcommand ;
              "timeout", or_null string_of_float timeout |]
       | Sequence { subcommands } ->
-          let ids = Array.map insert_or_update subcommands |> Array.to_list in
+          let ids = List.map insert_or_update subcommands in
           "command_sequence",
           [| "subcommands", "{"^ String.join "," ids ^"}" |]
       | Retry { subcommand ; up_to } ->

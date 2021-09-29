@@ -39,7 +39,7 @@ let rec check_isolation cmd =
   | Retry { subcommand } ->
       check_isolation subcommand
   | Sequence { subcommands } ->
-      Array.iter check_isolation subcommands
+      List.iter check_isolation subcommands
   | Try { subcommand ; on_failure } ->
       check_isolation subcommand ;
       check_isolation on_failure

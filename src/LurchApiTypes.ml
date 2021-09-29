@@ -29,7 +29,7 @@ struct
     | Wait of
         { subcommand : t ; timeout : float option }
     | Sequence of
-        { subcommands : t array }
+        { subcommands : t list }
     | Retry of
         { subcommand : t ; up_to : int }
     | Try of
@@ -49,7 +49,7 @@ struct
         let u = fold f u subcommand in
         f u cmd
     | Sequence { subcommands } ->
-        let u = Array.fold_left (fold f) u subcommands in
+        let u = List.fold_left (fold f) u subcommands in
         f u cmd
     | Try { subcommand ; on_failure } ->
         let u = f (fold f u subcommand) on_failure in
@@ -60,6 +60,18 @@ struct
   let to_json_string = to_json_string to_json
   let to_json_buffer = to_json_buffer to_json
   let of_json_string : string -> t = [%of_json: t]
+
+  let name_of_operation = function
+    | Nop -> "nop"
+    | Isolate _ -> "isolate"
+    | Chroot _ -> "chroot"
+    | Docker _ -> "docker"
+    | Shell _ -> "shell"
+    | GitClone _ -> "git-clone"
+    | Wait _ -> "wait"
+    | Sequence _ -> "sequence"
+    | Retry _ -> "retry"
+    | Try _ -> "try"
 end
 
 module Status =

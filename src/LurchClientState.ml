@@ -9,8 +9,10 @@ type location =
   | ShowError of string
   | ListPastRuns of Api.ListPastRuns.ts
   | ListProgramsAndRun of Api.ListPrograms.ts
-  | EditProgram of
-      { program : Program.t ; editor : bool ;
+  | ShowProgram of
+      { program : Program.t ;
+        (* If true, display the program in an editor: *)
+        editor : bool ;
         last_runs : Api.ListPastRuns.ts }
   | ConfirmDeleteProgram of
       { program : Program.t }

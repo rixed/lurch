@@ -164,10 +164,10 @@ let program_editor program editor last_runs =
                                  | None -> "" in
               button "Save" (`SaveProgram prev_name)
             else
-              button "Edit" (`SetDialog (State.EditProgram
+              button "Edit" (`SetDialog (State.ShowProgram
                 { program ; editor = true ; last_runs })) ;
             button "Cancel" (
-              if editor then `SetDialog (State.EditProgram
+              if editor then `SetDialog (State.ShowProgram
                 { program ; editor = false ; last_runs })
               else
                 `SetDialog State.Absent

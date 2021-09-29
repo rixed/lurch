@@ -272,24 +272,10 @@ let start_terminal run =
   | Try _ ->
       invalid_arg "Command.start_terminal: not a terminal"
 
-let name_of_operation =
-  let open Api.Command in
-  function
-  | Nop -> "nop"
-  | Isolate _ -> "isolate"
-  | Chroot _ -> "chroot"
-  | Docker _ -> "docker"
-  | Shell _ -> "shell"
-  | GitClone _ -> "git-clone"
-  | Wait _ -> "wait"
-  | Sequence _ -> "sequence"
-  | Retry _ -> "retry"
-  | Try _ -> "try"
-
 let finish_run run exit_status =
   let line =
     Printf.sprintf "%s %s."
-      (name_of_operation run.Api.Run.command.Api.Command.operation)
+      (Api.Command.name_of_operation run.Api.Run.command.Api.Command.operation)
       (if exit_status = 0 then "completed" else "failed") in
   Db.LogLine.insert run.id 1 line ;
   Db.Run.stop run.id exit_status
@@ -306,7 +292,7 @@ let step_sequences () =
     log_exceptions (fun () ->
       let subcommands =
         match seq.ListRunningSequences.run.command.operation with
-        | Sequence { subcommands ; _ } -> subcommands
+        | Sequence { subcommands ; _ } -> Array.of_list subcommands
         | _ -> assert false in
       if not seq.all_success then (
         log.info "Sequence #%d failed." seq.run.id ;

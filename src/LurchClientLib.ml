@@ -25,6 +25,9 @@ let option_map f = function
 let (|?) a b =
   match a with Some a -> a | None -> b
 
+let option_map_default def f opt =
+  option_map f opt |? def
+
 let array_find f a =
   let rec loop i =
     if i >= Array.length a then raise Not_found
@@ -80,12 +83,15 @@ let no_attr = attr "x" ""
 
 let id_ = attr "id"
 
+let disabled b = attr "disabled" (if b then "true" else "false")
+
 let tech_text str = txt_span ~a:[class_ "tech"] str
 
 let textarea ?key ?a l = elt "textarea" ?key ?a l
 
-let select ?key ?a ?selected options =
-  elt "select" ?key ?a (
+let select ?id ?key ?(a=[]) ?selected options =
+  let a = option_map_default a (fun id -> attr "id" id :: a) id in
+  elt "select" ?key ~a (
     List.map (fun opt ->
       let a = if selected = Some opt then [ attr "selected" "yes" ] else [] in
       elt ~a "option" [ text opt ]
@@ -107,7 +113,8 @@ let simple_table_header l =
 let button ?key ?(a=[]) label msg =
   input ?key ~a:(type_button :: value label :: onclick (fun _ -> msg) :: a) []
 
-let input_text ?key ?(a=[]) ?placeholder ?label value =
+let input_text ?id ?key ?(a=[]) ?placeholder ?label ?units value =
+  let a = option_map_default a (fun id -> attr "id" id :: a) id in
   let a = type_ "text" ::
           (* attribute not property for value or the input won't be editable! *)
           attr "value" value ::
@@ -115,12 +122,27 @@ let input_text ?key ?(a=[]) ?placeholder ?label value =
   let a =
     match placeholder with None -> a
                          | Some p -> attr "placeholder" p :: a in
-  match label with
-  | None ->
+  match label, units with
+  | None, None ->
       input ?key ~a []
-  | Some label ->
+  | Some label, None ->
       p [ elt "label" [ text label ] ;
           input ?key ~a [] ]
+  | None, Some units ->
+      p [ input ?key ~a [] ;
+          elt "label" [ text units ] ]
+  | Some label, Some units ->
+      p [ elt "label" [ text label ] ;
+          input ?key ~a [] ;
+          elt "label" [ text units ] ]
+
+let input_hidden ?id ?key ?(a=[]) value =
+  let a = option_map_default a (fun id -> attr "id" id :: a) id in
+  let a = type_ "hidden" ::
+          (* attribute not property for value or the input won't be editable! *)
+          attr "value" value ::
+          a in
+  input ?key ~a []
 
 let horiz_spacer =
   p ~a:[class_ "horiz-spacer"] [ text " " ]
@@ -169,18 +191,14 @@ let togle_list s lst =
  * with a [editor] boolean. *)
 
 let edit_string ?id ?key ?(a=[]) editor str =
-  let a =
-    match id with None -> a
-    | Some id -> attr "id" id :: a in
+  let a = option_map_default a (fun id -> attr "id" id :: a) id in
   if editor then
     input_text ?key ~a:(autofocus::a) ~placeholder:"enter a unique name..." str
   else
     p ?key ~a:(class_ "editable" :: a) [ text str ]
 
 let edit_text ?id ?key ?(a=[]) editor str =
-  let a =
-    match id with None -> a
-    | Some id -> attr "id" id :: a in
+  let a = option_map_default a (fun id -> attr "id" id :: a) id in
   if editor then
     textarea ?key ~a [ text str ]
   else

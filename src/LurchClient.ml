@@ -25,7 +25,7 @@ let view_of_location =
       Views.list_past_runs lst
   | ListProgramsAndRun lst ->
       Views.list_programs_and_run lst
-  | EditProgram { program ; editor ; last_runs } ->
+  | ShowProgram { program ; editor ; last_runs } ->
       Views.program_editor program editor last_runs
   | ConfirmDeleteProgram { program } ->
       Views.program_confirm_deletion program
@@ -75,7 +75,7 @@ let lurch_url page params =
 let oldest_top_run = function
   | State.ListPastRuns runs when Array.length runs > 0 ->
       Some runs.(Array.length runs - 1).top_run
-  | State.EditProgram { last_runs } when Array.length last_runs > 0 ->
+  | State.ShowProgram { last_runs } when Array.length last_runs > 0 ->
       let oldest =
         Array.fold_left (fun oldest r ->
           if r.Api.ListPastRuns.created < oldest.Api.ListPastRuns.created then
@@ -142,7 +142,7 @@ let update =
                              dialog = Absent ; waiting = false }
   | `CreateProgram ->
       return State.{ st with
-        dialog = EditProgram { program = Program.init ;
+        dialog = ShowProgram { program = Program.init ;
                                editor = true ; last_runs = [||] } ;
         refresh_msg = None }
   | `GetProgram name ->
@@ -160,7 +160,7 @@ let update =
       let program = Program.of_api res in
       return ~c:[Vdom.Cmd.echo (`GetLastRuns res.name) ]
         State.{ st with
-          dialog = EditProgram { program ; editor = false ;
+          dialog = ShowProgram { program ; editor = false ;
                                  last_runs = [||] } ;
           waiting = false ;
           refresh_msg = Some (`GetProgram res.name) }
@@ -182,23 +182,41 @@ let update =
       log_js (Js_browser.JSON.parse res) ;
       let res = Api.ListPastRuns.array_of_json_string res in
       (match st.State.dialog with
-      | EditProgram { program ; editor ; last_runs }
+      | ShowProgram { program ; editor ; last_runs }
         when program.saved <> None &&
              (option_get program.saved).name = name ->
           return State.{ st with
-            dialog = EditProgram { program ; editor ;
+            dialog = ShowProgram { program ; editor ;
                                    last_runs = Array.append last_runs res } ;
             waiting = false }
       | _ ->
           return State.{ st with waiting = false } (* used clicked away already *))
-  | `SaveProgram prev_name -> (* prev_name is "" for new programs *)
-      let open Js_browser in
-      (match Document.get_element_by_id document "program_name",
-             Document.get_element_by_id document "program_command" with
+  | `RefreshProgram dom_id ->
+      (match Js_browser.Document.get_element_by_id document "program_name",
+             LurchClientCommand.command_of_form document "program_command" with
       | Some name, Some command ->
           let name = Element.value name in
-          let command = Element.value command |>
-                        Lang.command_of_string in
+          (match st.State.dialog with
+          | ShowProgram { program ; editor ; last_runs } ->
+              let program =
+                Program.{ edited = Api.Program.{ name ; created = 0. ; command } ;
+                          saved = program.saved } in
+              let dialog = State.ShowProgram { program ; editor ; last_runs } in
+              return State.{ st with dialog ; waiting = false }
+          | _ ->
+              return State.{ st with
+                dialog = ShowError "Received a RefresProgram message while \
+                                    not in ShowProgram view!?" ;
+                waiting = false ; refresh_msg = None })
+      | _ ->
+          return State.{ st with
+            dialog = ShowError "Cannot find program values while refreshing!?" ;
+            waiting = false ; refresh_msg = None })
+  | `SaveProgram prev_name -> (* prev_name is "" for new programs *)
+      (match Js_browser.Document.get_element_by_id document "program_name",
+             LurchClientCommand.command_of_form document "program_command" with
+      | Some name, Some command ->
+          let name = Element.value name in
           let payload =
             Api.Program.(to_json_string
               { name ; command ; created = 0. }) in

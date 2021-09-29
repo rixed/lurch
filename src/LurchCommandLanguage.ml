@@ -136,8 +136,7 @@ let command_of_string str =
         let timeout = Some (float_of_string timeout) in
         Wait { subcommand = command_of_sexpr s ; timeout }
     | Lst (Sym "sequence" :: cmds) ->
-        Sequence
-          { subcommands = List.map command_of_sexpr cmds |> Array.of_list }
+        Sequence { subcommands = List.map command_of_sexpr cmds }
     | Lst [ Sym "retry" ; s ; Sym up_to ] ->
         Retry { subcommand = command_of_sexpr s ;
                 up_to = int_of_string up_to }
@@ -182,8 +181,7 @@ let string_of_command ?max_depth cmd =
         Lst [ Sym "wait" ; Sym (string_of_float t) ]
     | Sequence { subcommands } ->
         Lst (Sym "sequence" ::
-             (Array.map (sexpr_of_command ?max_depth) subcommands |>
-              Array.to_list))
+             (List.map (sexpr_of_command ?max_depth) subcommands))
     | Retry { subcommand ; up_to } ->
         Lst [ Sym "retry" ;
               sexpr_of_command ?max_depth subcommand ;
