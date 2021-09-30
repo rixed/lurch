@@ -35,7 +35,6 @@ let get_program name =
 let rec check_isolation cmd =
   match cmd.Api.Command.operation with
   | Api.Command.Nop | Isolate _ -> ()
-  | Wait { subcommand }
   | Retry { subcommand } ->
       check_isolation subcommand
   | Sequence { subcommands } ->

@@ -63,12 +63,10 @@ create table command_git_clone (
   foreign key (command) references command (id) on delete cascade
 );
 
-create table command_wait (
+create table command_approve (
   command int,
-  subcommand int not null,
   timeout float,
-  foreign key (command) references command (id) on delete cascade,
-  foreign key (subcommand) references command (id)
+  foreign key (command) references command (id) on delete cascade
 );
 
 create table command_sequence (
@@ -153,9 +151,9 @@ create table logline (
 create index if not exists logline_run on logline using hash (run);
 create index if not exists logline_time on logline (time);
 
--- Where to store that a command_wait has been confirmed:
-create table wait_confirmed (
-  run int not null, -- must be a command_wait
+-- Where to store that a command_approve has been approved:
+create table approved (
+  run int not null, -- must be a command_approve
   time timestamp not null default now(),
   message text not null default '',
 
@@ -293,16 +291,16 @@ create view list_running_sequences as
     -- but all started subcommands are:
     coalesce(r2.all_stopped, true);
 
--- List all pending command_wait commands, possibly with the corresponding
--- pending confirmation
-create view list_pending_confirmations as
+-- List all pending command_approve commands, possibly with the corresponding
+-- confirmation message
+create view list_pending_approval as
   select
     r.id as run,
     c.time,
     c.message
   from run r
-  join command_wait w on w.command = r.command
-  left outer join wait_confirmed c on c.run = r.id
+  join command_approve w on w.command = r.command
+  left outer join approved c on c.run = r.id
   where r.stopped is null;
 
 -- List all containers/chroot that have to be build

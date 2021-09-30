@@ -61,7 +61,7 @@ struct
   let rec get id =
     let cnx = get_cnx () in
     let tables = [| "command_isolate" ; "command_chroot" ; "command_docker" ;
-                    "command_shell" ; "command_git_clone" ; "command_wait" ;
+                    "command_shell" ; "command_git_clone" ; "command_approve" ;
                     "command_sequence" ; "command_retry" ; "command_try" |] in
     let operation =
       array_find_mapi (fun i ->
@@ -96,9 +96,8 @@ struct
                   revision = getn identity 2 ;
                   directory = getn identity 3 }
           | 5 ->
-              Api.Command.Wait {
-                subcommand = get (int_of_string (getv 1)) ;
-                timeout = getn float_of_string 2 }
+              Api.Command.Approve {
+                timeout = getn float_of_string 1 }
           | 6 ->
               Api.Command.Sequence
                 { subcommands = List.map (get % int_of_string) (list (getv 1)) }
@@ -140,10 +139,9 @@ struct
           "command_git_clone",
           [| "url", url ; "revision", or_null identity revision ;
              "directory", or_null identity directory |]
-      | Wait { subcommand ; timeout } ->
-          "command_wait",
-          [| "subcommand", insert_or_update subcommand ;
-             "timeout", or_null string_of_float timeout |]
+      | Approve { timeout } ->
+          "command_approve",
+          [| "timeout", or_null string_of_float timeout |]
       | Sequence { subcommands } ->
           let ids = List.map insert_or_update subcommands in
           "command_sequence",
@@ -203,7 +201,7 @@ struct
          from run r \
          join run rtop on rtop.id = coalesce(r.top_run, r.id) \
          left outer join program p on p.command = rtop.command \
-         left outer join wait_confirmed w on w.run = r.id \
+         left outer join approved w on w.run = r.id \
          left outer join chroot_path c on c.run = r.id \
          left outer join docker_instance d on d.run = r.id \
          where r.id = $1" in
@@ -606,7 +604,7 @@ struct
     let params = [| string_of_int run_id ; msg |] in
     try
       cnx#exec ~expect:[Command_ok] ~params
-        "insert into wait_confirmed (run, message) values ($1, $2)" |>
+        "insert into approved (run, message) values ($1, $2)" |>
       ignore
     with e ->
       Printf.sprintf "Cannot confirm run %d: %s\n" run_id
@@ -614,18 +612,18 @@ struct
       failwith
 end
 
-module ListPendingConfirmations =
+module ListPendingApprovals =
 struct
   let get () =
     let cnx = get_cnx () in
     let res =
       cnx#exec ~expect:[Tuples_ok]
         "select run, extract(epoch from time), message \
-        from list_pending_confirmations order by time" in
-    log.debug "%d wait_confirmations are waiting." res#ntuples ;
+        from list_pending_approval order by time" in
+    log.debug "%d approves are waiting." res#ntuples ;
     Enum.init res#ntuples (fun i ->
       log.debug "Got tuple %a" (Array.print String.print) (res #get_tuple i) ;
-      Api.ListPendingConfirmations.{
+      Api.ListPendingApprovals.{
         run = Run.get (int_of_string (res#getvalue i 0)) ;
         time = if res#getisnull i 1 then None else
                  Some (float_of_string (res#getvalue i 1)) ;

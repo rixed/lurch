@@ -130,11 +130,11 @@ let command_of_string str =
         let revision = if revision = "" then None else Some revision
         and directory = Some directory in
         GitClone { url ; revision ; directory }
-    | Lst [ Sym "wait" ; (Lst _ as s) ] ->
-        Wait { subcommand = command_of_sexpr s ; timeout = None }
-    | Lst [ Sym "wait" ; Sym timeout ; s ] ->
+    | Lst [ Sym "approve" ] ->
+        Approve { timeout = None }
+    | Lst [ Sym "approve" ; Sym timeout ] ->
         let timeout = Some (float_of_string timeout) in
-        Wait { subcommand = command_of_sexpr s ; timeout }
+        Approve { timeout }
     | Lst (Sym "sequence" :: cmds) ->
         Sequence { subcommands = List.map command_of_sexpr cmds }
     | Lst [ Sym "retry" ; s ; Sym up_to ] ->
@@ -175,10 +175,10 @@ let string_of_command ?max_depth cmd =
         Lst [ Sym "git-clone" ; Str url ; Str r ; Str d ]
     | GitClone { url ; revision = None ; directory = Some d } ->
         Lst [ Sym "git-clone" ; Str url ; Str "" ; Str d ]
-    | Wait { timeout = None } ->
-        Lst [ Sym "wait" ]
-    | Wait { timeout = Some t } ->
-        Lst [ Sym "wait" ; Sym (string_of_float t) ]
+    | Approve { timeout = None } ->
+        Lst [ Sym "approve" ]
+    | Approve { timeout = Some t } ->
+        Lst [ Sym "approve" ; Sym (string_of_float t) ]
     | Sequence { subcommands } ->
         Lst (Sym "sequence" ::
              (List.map (sexpr_of_command ?max_depth) subcommands))

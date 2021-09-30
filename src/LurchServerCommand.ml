@@ -232,6 +232,8 @@ let start_process run cmd_timeout args =
 (* The timeout to use for every "internal" commands: *)
 let command_timeout = ref (Some 600.)
 
+(* Terminals are commands that must actually be executed externally, like shell
+ * or git commands. *)
 let start_terminal run =
   match run.Api.Run.command.operation with
   | Nop ->
@@ -266,11 +268,11 @@ let start_terminal run =
       start_process run !command_timeout args
   (* Those are not terminals: *)
   | Isolate _
-  | Wait _
+  | Approve _
   | Sequence _
   | Retry _
   | Try _ ->
-      invalid_arg "Command.start_terminal: not a terminal"
+      invalid_arg "start_terminal: not a terminal"
 
 let finish_run run exit_status =
   let line =
@@ -321,54 +323,38 @@ let finish_as_subrun run subrun =
   | None ->
       log.info "Must wait for subcommand, still running as #%d" subrun.id
 
-let step_confirmations () =
-  Db.ListPendingConfirmations.get () |>
-  Enum.iter (fun confirm ->
+let step_approvals () =
+  Db.ListPendingApprovals.get () |>
+  Enum.iter (fun approve ->
     log_exceptions (fun () ->
       (* If we have a subrun already, just wait for it to complete: *)
-      if confirm.Api.ListPendingConfirmations.run.Api.Run.children <> [||]
-      then (
-        assert (Array.length confirm.run.children = 1) ;
-        finish_as_subrun confirm.run confirm.run.children.(0)
-      ) else (
-        let subcommand, timeout =
-          match confirm.run.command.Command.operation with
-          | Wait { subcommand ; timeout } ->
-              subcommand, timeout
-          | _ -> assert false in
-        let unblock exit_status =
-          (* Start the subcommand before stopping the wait so this is less of
-           * a problem to die here: *)
-          let line = Printf.sprintf "%s. Proceeding to subcommand"
-            (if exit_status >= 0 then "Confirmed" else "Timing out") in
-          Db.LogLine.insert confirm.run.id 1 line ;
-          let run_id = Db.Run.insert ~top_run:confirm.run.top_run
-                                     ~parent_run:confirm.run.id
-                                     subcommand.Api.Command.id in
-          log.debug "Created a new run#%d" run_id ;
-        in
-        match confirm.run.started, timeout, confirm.time with
-        | None, _, _ ->
-            log.debug "Starting run#%d for wait_confirmation" confirm.run.id ;
-            Db.Run.start confirm.run.id
-        | Some started, Some timeout, None ->
-            let age = Unix.gettimeofday () -. started in
-            if age > timeout then (
-              log.info "Timing out wait for confirmation #%d after %fs"
-                confirm.run.id age ;
-              unblock (-1) ;
-            ) else (
-              log.debug "Waiting longer for the confirmation (timeout in %fs)."
-                (timeout -. age)
-            )
-        | Some _, None, None ->
-            (* Just wait *)
-            log.debug "Waiting for the confirmation."
-        | Some _, _, Some t ->
-            log.info "Confirmation #%d received, proceeding to next step."
-              confirm.run.id ;
-            unblock 0
-      )))
+      let timeout =
+        match approve.Api.ListPendingApprovals.run.command.Command.operation with
+        | Approve { timeout } -> timeout
+        | _ -> assert false in
+      let unblock exit_status =
+        let line = if exit_status >= 0 then "Confirmed" else "Timing out" in
+        Db.LogLine.insert approve.run.id 1 line
+      in
+      match approve.run.started, timeout, approve.time with
+      | None, _, _ ->
+          log.debug "Starting run#%d for approve" approve.run.id ;
+          Db.Run.start approve.run.id
+      | Some started, Some timeout, None ->
+          let age = Unix.gettimeofday () -. started in
+          if age > timeout then (
+            log.info "Timing out approval #%d after %fs" approve.run.id age ;
+            unblock (-1) ;
+          ) else (
+            log.debug "Waiting longer for approval (timeout in %fs)."
+              (timeout -. age)
+          )
+      | Some _, None, None ->
+          (* Just wait *)
+          log.debug "Waiting for approval."
+      | Some _, _, Some t ->
+          log.info "Approval #%d received, succeeding." approve.run.id ;
+          unblock 0))
 
 (* The isolation commands can take a while so we run them asynchronously
  * and wait for their specific entry in their additional tables to proceed
@@ -474,7 +460,7 @@ let step () =
   (* TODO: also timeout running commands *)
   step_sequences () ;
   (* Check if some waits have been confirmed: *)
-  step_confirmations () ;
+  step_approvals () ;
   (* Check if some isolation layer have to be build: *)
   step_isolation () ;
   (* Start all waiting terminals: *)

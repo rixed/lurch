@@ -25,8 +25,8 @@ let rec edit_as_form ?(build_isolation=Normal) ~editor ?dom_id command =
     | Isolation ->
         [ "chroot" ; "docker" ]
     | Normal ->
-        [ "nop" ; "shell" ; "git-clone" ; "wait" ;
-          "sequence" ; "retry" ; "try" ] in
+        [ "nop" ; "shell" ; "git-clone" ; "approve" ; "sequence" ; "retry" ;
+          "try" ] in
   let label_of_operation op =
     let l = Api.Command.name_of_operation op in
     if not (List.mem l command_labels) then
@@ -92,15 +92,14 @@ let rec edit_as_form ?(build_isolation=Normal) ~editor ?dom_id command =
           input_text ?id:(id "revision") ~label:"Revision:" ~a
             ~placeholder:"master…" (revision |? "") ;
           input_text ?id:(id "directory") ~label:"Directory:" ~a (directory |? "") ]
-    | Wait { subcommand ; timeout } ->
+    | Approve { timeout } ->
         div [
-          p [ text "Wait for a manual confirmation before running the given \
-                    subcommand. If no confirmation is received before the optional \
-                    timeout expires then the subcommand is not executed and this \
-                    command is considered a failure." ] ;
+          p [ text "Wait for a manual approval from the user. The page \
+                    displaying the run will have a button that the user must \
+                    click. If no approval is received before the optional \
+                    timeout expires then this command is considered a failure." ] ;
           input_text ?id:(id "timeout") ~label:"Timeout:" ~units:"seconds" ~a
-            ~placeholder:"seconds…" (option_map_default "" string_of_float timeout) ;
-          edit_as_form ~editor ?dom_id:(id "subcommand") subcommand ]
+            ~placeholder:"seconds…" (option_map_default "" string_of_float timeout) ]
     | Sequence { subcommands } ->
         let lis =
           List.mapi (fun i subcommand ->
@@ -181,10 +180,9 @@ let rec command_of_form_exc document dom_id =
         and revision = value_opt "revision"
         and directory = value_opt "directory" in
         Api.Command.GitClone { url ; revision ; directory }
-    | "wait" ->
-        let subcommand = opt_subcommand "subcommand"
-        and timeout = option_map float_of_string (value_opt "timeout") in
-        Api.Command.Wait { subcommand ; timeout }
+    | "approve" ->
+        let timeout = option_map float_of_string (value_opt "timeout") in
+        Api.Command.Approve { timeout }
     | "sequence" ->
         let subcommand i =
           command_of_form_exc document (id (string_of_int i)) in
@@ -293,7 +291,7 @@ let rec view run =
                 []
             | Some dir ->
                 [ text " into directory " ; config_txt dir ; text "." ])) ]
-    | Wait { subcommand } ->
+    | Approve { timeout } ->
         div [
           (match run.confirmation_msg with
           | None ->
@@ -302,9 +300,9 @@ let rec view run =
               div [
                 p [ text "Waiting since " ;
                     text (date_of_ts run.created) ] ;
-                input_text ~label:"Leave a message" ~a:[id_ msg_dom_id]
+                input_text ~label:"Leave a message:" ~id:msg_dom_id
                   ~placeholder:"message…" "" ;
-                button "Click to unblock"
+                button "Approve"
                   (`ConfirmCommand (run.id, msg_dom_id, run.top_run)) ]
           | Some msg ->
               p (
@@ -312,8 +310,7 @@ let rec view run =
                 if msg <> "" then
                   [ text " with message: " ; text msg ]
                 else
-                  [ text " with no message" ])) ;
-          view_subcommand subcommand ]
+                  [ text " with no message" ])) ]
     | Sequence { subcommands } ->
         let num_steps = List.length subcommands in
         div [
