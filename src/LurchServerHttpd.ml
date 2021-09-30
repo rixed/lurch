@@ -31,6 +31,9 @@ let get_program name =
   Api.Program.to_json_buffer |>
   print_data
 
+let del_program name =
+  Db.Program.delete name
+
 (* Programs submitted via the GUI must not exec any non-isolated command: *)
 let rec check_isolation cmd =
   match cmd.Api.Command.operation with
@@ -103,6 +106,9 @@ let serve () =
         let program = Cgi.read_body () in
         let prev_name = get_opt_param "prev_name" identity in
         save_program prev_name program
+    | "del_program" ->
+        let name = get_param "program" identity in
+        del_program name
     | "get_logs" ->
         (* We might ask for all the logs for this top_run, or all the logs for
          * a particular run, both with the run parameter. *)
