@@ -3,6 +3,7 @@ open Postgresql
 
 open LurchServerLib
 module Api = LurchApiTypes
+module Lang = LurchCommandLanguage
 
 let () =
   Printexc.register_printer (function
@@ -100,7 +101,8 @@ struct
               Api.Command.Approve {
                 subcommand = get (int_of_string (getv 1)) ;
                 timeout = getn float_of_string 2 ;
-                comment = getv 3 }
+                comment = getv 3 ;
+                autosuccess = Lang.sql_bool_of_string (getv 4) }
           | 6 ->
               Api.Command.Sequence
                 { subcommands = List.map (get % int_of_string) (list (getv 1)) }
@@ -148,11 +150,12 @@ struct
           "command_git_clone",
           [| "url", url ; "revision", or_null identity revision ;
              "directory", or_null identity directory |]
-      | Approve { subcommand ; timeout ; comment } ->
+      | Approve { subcommand ; timeout ; comment ; autosuccess } ->
           "command_approve",
           [| "subcommand", insert_or_update subcommand ;
              "timeout", or_null string_of_float timeout ;
-             "comment", comment |]
+             "comment", comment ;
+             "autosuccess", Lang.sql_string_of_bool autosuccess |]
       | Sequence { subcommands } ->
           let ids = List.map insert_or_update subcommands in
           "command_sequence",
@@ -650,7 +653,7 @@ struct
     let cnx = get_cnx () in
     let res =
       cnx#exec ~expect:[Tuples_ok]
-        "select run, extract(epoch from time), message \
+        "select run, extract(epoch from time), message, autosuccess \
         from list_pending_approval order by time" in
     log.debug "%d approvals are waiting." res#ntuples ;
     Enum.init res#ntuples (fun i ->
@@ -659,7 +662,8 @@ struct
         run = Run.get (int_of_string (res#getvalue i 0)) ;
         time = if res#getisnull i 1 then None else
                  Some (float_of_string (res#getvalue i 1)) ;
-        message = res#getvalue i 2 })
+        message = res#getvalue i 2 ;
+        autosuccess = Lang.sql_bool_of_string (res#getvalue i 3) })
 end
 
 module ListPendingIsolations =

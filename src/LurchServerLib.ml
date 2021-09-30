@@ -134,11 +134,6 @@ let clean_fork () =
 let shell_quote s =
   "'"^ String.nreplace s "'" "'\\''" ^"'"
 
-let sql_bool_of_string = function
-  | "t" -> true
-  | "f" -> false
-  | x -> invalid_arg ("sql_bool_of_string "^ x)
-
 let write_or_fail ~fname fd s =
   try
     Unix.single_write_substring fd s 0 (String.length s) |>

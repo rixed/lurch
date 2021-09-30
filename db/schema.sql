@@ -73,6 +73,7 @@ create table command_approve (
   subcommand int not null,
   timeout float,
   comment text not null default '',
+  autosuccess boolean not null default false,
   foreign key (command) references command (id) on delete cascade,
   foreign key (subcommand) references command (id)
 );
@@ -323,7 +324,8 @@ create view list_pending_approval as
   select
     r.id as run,
     c.time,
-    c.message
+    c.message,
+    w.autosuccess
   from run r
   join command_approve w on w.command = r.command
   left outer join approved c on c.run = r.id

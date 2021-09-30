@@ -356,16 +356,21 @@ let step_approvals () =
               subcommand, timeout
           | _ -> assert false in
         let unblock exit_status =
+          let proceed = exit_status >= 0 || approve.autosuccess in
           (* Start the subcommand before stopping the wait so this is less of
            * a problem to die here: *)
-          let line = Printf.sprintf "%s. Proceeding to subcommand"
-            (if exit_status >= 0 then "Confirmed" else "Timing out") in
+          let line = Printf.sprintf "%s. %s subcommand"
+            (if exit_status >= 0 then "Confirmed" else "Timing out")
+            (if proceed then "Proceeding to" else "Cancelling") in
           Db.LogLine.insert approve.run.id 1 line ;
-          let run_id = Db.Run.insert ~top_run:approve.run.top_run
-                                     ~parent_run:approve.run.id
-                                     subcommand.Api.Command.id in
-          log.debug "Created a new run#%d" run_id ;
-        in
+          if proceed then (
+            let run_id = Db.Run.insert ~top_run:approve.run.top_run
+                                       ~parent_run:approve.run.id
+                                       subcommand.Api.Command.id in
+            log.debug "Created a new run#%d" run_id
+          ) else (
+            Db.Run.stop approve.run.id (-1)
+          ) in
         match approve.run.started, timeout, approve.time with
         | None, _, _ ->
             log.debug "Starting run#%d for wait_confirmation" approve.run.id ;

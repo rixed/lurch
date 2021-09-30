@@ -2,6 +2,15 @@
  * the other way around. *)
 open LurchApiTypes.Command
 
+let sql_bool_of_string = function
+  | "t" -> true
+  | "f" -> false
+  | x -> invalid_arg ("sql_bool_of_string "^ x)
+
+let sql_string_of_bool = function
+  | true -> "t"
+  | false -> "f"
+
 (* String representation of commands are mere s-expressions.
  * strings are represented as OCaml quoted strings. *)
 type context = Blank | Enter | Leave | Symbol | String
@@ -130,11 +139,11 @@ let command_of_string str =
         let revision = if revision = "" then None else Some revision
         and directory = Some directory in
         GitClone { url ; revision ; directory }
-    | Lst [ Sym "approve" ; Sym comment ; s ] ->
-        Approve { subcommand = command_of_sexpr s ; timeout = None ; comment }
-    | Lst [ Sym "approve" ; Sym timeout ; Sym comment ; s ] ->
-        let timeout = Some (float_of_string timeout) in
-        Approve { subcommand = command_of_sexpr s ; timeout ; comment }
+    | Lst [ Sym "approve" ; Sym timeout ; Sym comment ; Sym autosuccess ; s ] ->
+        let timeout =
+          if timeout = "" then None else Some (float_of_string timeout) in
+        Approve { subcommand = command_of_sexpr s ; timeout ; comment ;
+                  autosuccess = sql_bool_of_string autosuccess }
     | Lst (Sym "sequence" :: cmds) ->
         Sequence { subcommands = List.map command_of_sexpr cmds }
     | Lst [ Sym "retry" ; s ; Sym up_to ] ->
@@ -178,14 +187,12 @@ let string_of_command ?max_depth cmd =
         Lst [ Sym "git-clone" ; Str url ; Str r ; Str d ]
     | GitClone { url ; revision = None ; directory = Some d } ->
         Lst [ Sym "git-clone" ; Str url ; Str "" ; Str d ]
-    | Approve { subcommand ; timeout = None ; comment } ->
+    | Approve { subcommand ; timeout ; comment ; autosuccess } ->
         Lst [ Sym "approve" ;
+              Sym (match timeout with None -> ""
+                                    | Some t -> string_of_float t) ;
               Sym comment ;
-              sexpr_of_command ?max_depth subcommand ]
-    | Approve { subcommand ; timeout = Some t ; comment } ->
-        Lst [ Sym "approve" ;
-              Sym (string_of_float t) ;
-              Sym comment ;
+              Sym (sql_string_of_bool autosuccess) ;
               sexpr_of_command ?max_depth subcommand ]
     | Sequence { subcommands } ->
         Lst (Sym "sequence" ::

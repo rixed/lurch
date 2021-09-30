@@ -27,7 +27,8 @@ struct
     | GitClone of
         { url : string ; revision : string option ; directory : string option }
     | Approve of
-        { subcommand : t ; timeout : float option ; comment : string }
+        { subcommand : t ; timeout : float option ; comment : string ;
+          autosuccess : bool }
     | Sequence of
         { subcommands : t list }
     | Retry of
@@ -220,5 +221,6 @@ struct
   type t =
     { run : Run.t ;
       time : float option ; (* None if still unconfirmed *)
-      message : string }
+      message : string ;
+      autosuccess : bool }
 end

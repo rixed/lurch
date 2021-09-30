@@ -11,6 +11,10 @@ let log str =
 let log_js obj =
   Js_browser.(Console.log console obj)
 
+let name_ x = Property ("name", String x)
+
+let checked_ = attr "checked" ""
+
 let assert_fail str =
   log str ; assert false
 
@@ -128,15 +132,18 @@ let input_text ?id ?key ?(a=[]) ?placeholder ?label ?units value =
   | None, None ->
       input ?key ~a []
   | Some label, None ->
-      p [ elt "label" [ text label ] ;
-          input ?key ~a [] ]
+      elt "label" [
+        text label ;
+        input ?key ~a [] ]
   | None, Some units ->
-      p [ input ?key ~a [] ;
-          elt "label" [ text units ] ]
+      elt "label" [
+        input ?key ~a [] ;
+        text units ]
   | Some label, Some units ->
-      p [ elt "label" [ text label ] ;
-          input ?key ~a [] ;
-          elt "label" [ text units ] ]
+      elt "label" [
+        text label ;
+        input ?key ~a [] ;
+        text units ]
 
 let input_hidden ?id ?key ?(a=[]) value =
   let a = option_map_default a (fun id -> attr "id" id :: a) id in
@@ -171,10 +178,32 @@ let checkboxes ~action ?key ?a options selection =
         let selected = List.mem opt selection in
         label [
           (let a = [type_ "checkbox"; value opt; onchange action] in
-           let a = if selected then attr "checked" ""::a else a in
+           let a = if selected then checked_ :: a else a in
            input ~a []) ;
           text opt ]
       ) options)
+
+let group_name_seq = ref 0
+let get_group_name () =
+  let n = "group_name_"^ string_of_int !group_name_seq in
+  incr group_name_seq ;
+  n
+
+let rec radios ?id ?key ?(a=[]) ?label options def =
+  match label with
+  | Some label ->
+      p ?key [
+        text label ; (* Not to be confused with the option labels *)
+        radios ?id ~a options def ]
+  | None ->
+      let a = option_map_default a (fun id -> attr "id" id :: a) id in
+      let group_name = get_group_name () in
+      div ~a ?key
+        (List.map (fun (n, v) ->
+          let a = [type_ "radio"; name_ group_name; value v] in
+          let a = if v = def then checked_ :: a else a in
+          elt "label" [ input ~a [] ; text n ]
+        ) options)
 
 let unorderd_list ?key ?a lst =
   if lst = [] then text "None" else

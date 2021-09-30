@@ -81,28 +81,33 @@ let rec edit_as_form ?(build_isolation=Normal) ~editor ?dom_id command =
                     environment (PATH, USER). The command will be forcibly \
                     terminated, and that command considered a failure, if it's \
                     not finished after the given timeout." ] ;
-          input_text ?id:(id "line") ~label:"Command:" ~a ~placeholder:"shell…" line ;
-          input_text ?id:(id "timeout") ~label:"Timeout:" ~units:"seconds" ~a
-            ~placeholder:"seconds…" (option_map_default "" string_of_float timeout) ]
+          p [ input_text ?id:(id "line") ~label:"Command:" ~a ~placeholder:"shell…" line ] ;
+          p [ input_text ?id:(id "timeout") ~label:"Timeout:" ~units:"seconds" ~a
+                ~placeholder:"seconds…" (option_map_default "" string_of_float timeout) ] ]
     | GitClone { url ; revision ; directory } ->
         div [
           p [ text "Clones a git directory and checkout a given revision." ] ;
-          input_text ?id:(id "url") ~label:"Repository:" ~a
-            ~placeholder:"url…" url ;
-          input_text ?id:(id "revision") ~label:"Revision:" ~a
-            ~placeholder:"master…" (revision |? "") ;
-          input_text ?id:(id "directory") ~label:"Directory:" ~a (directory |? "") ]
-    | Approve { subcommand ; timeout ; comment } ->
+          p [ input_text ?id:(id "url") ~label:"Repository:" ~a
+                ~placeholder:"url…" url ] ;
+          p [ input_text ?id:(id "revision") ~label:"Revision:" ~a
+                ~placeholder:"master…" (revision |? "") ] ;
+          p [ input_text ?id:(id "directory") ~label:"Directory:" ~a
+                (directory |? "") ] ]
+    | Approve { subcommand ; timeout ; comment ; autosuccess } ->
         div [
           p [ text "Wait for a manual approval before running the given \
                     subcommand. If no confirmation is received before the optional \
-                    timeout expires then the subcommand is not executed and this \
-                    command is considered a failure." ] ;
+                    timeout expires then either the execution proceed or the
+                    program fails, depending on the auto-success flag." ];
           div [
             p [ text "Text for user:" ] ;
             textarea ?id:(id "comment") ~a [ text comment ] ] ;
-          input_text ?id:(id "timeout") ~label:"Timeout:" ~units:"seconds" ~a
-            ~placeholder:"seconds…" (option_map_default "" string_of_float timeout) ;
+          p [ input_text ?id:(id "timeout") ~label:"Timeout:" ~units:"seconds"
+                ~a ~placeholder:"seconds…"
+                (option_map_default "" string_of_float timeout) ] ;
+          p [ radios ?id:(id "autosuccess") ~label:"On timeout:" ~a
+                [ "proceed", "t" ; "fail", "f" ]
+                (Lang.sql_string_of_bool autosuccess) ] ;
           edit_as_form ~editor ?dom_id:(id "subcommand") subcommand ]
     | Sequence { subcommands } ->
         let lis =
@@ -158,9 +163,26 @@ let rec command_of_form_exc document dom_id =
     try command_of_form_exc document (id suff)
     with _ -> Api.Command.{ operation = Nop ; id = 0 } in
   let value ?def suff =
-    match Js_browser.Document.get_element_by_id document (id suff), def with
-    | Some e, _ -> Js_browser.Element.value e
-    | None, None -> failwith ("No such element: "^ (id suff))
+    let id = id suff in
+    match Js_browser.Document.get_element_by_id document id, def with
+    | Some e, _ ->
+        (* If this is a div then we have a radio group: *)
+        if Js_browser.Element.node_name e = "DIV" then (
+          (* return the value of the checked radio: *)
+          try
+            Js_browser.Element.get_elements_by_tag_name e "input" |>
+            array_find Js_browser.Element.checked |>
+            Js_browser.Element.value
+          with _ ->
+            log "Cannot find any checked input" ;
+            (match def with
+            | Some v -> v
+            | None -> failwith ("No checked value for: "^ id))
+        ) else (
+          (* merely return this element's value: *)
+          Js_browser.Element.value e
+        )
+    | None, None -> failwith ("No such element: "^ id)
     | None, Some def -> def in
   let value_opt suff =
     match value ~def:"" suff with
@@ -195,8 +217,9 @@ let rec command_of_form_exc document dom_id =
     | "approve" ->
         let subcommand = opt_subcommand "subcommand"
         and timeout = option_map float_of_string (value_opt "timeout")
-        and comment = value ~def:"" "comment" in
-        Api.Command.Approve { subcommand ; timeout ; comment }
+        and comment = value ~def:"" "comment"
+        and autosuccess = Lang.sql_bool_of_string (value ~def:"t" "autosuccess") in
+        Api.Command.Approve { subcommand ; timeout ; comment ; autosuccess }
     | "sequence" ->
         let subcommand i =
           command_of_form_exc document (id (string_of_int i)) in
