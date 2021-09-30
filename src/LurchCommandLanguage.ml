@@ -130,11 +130,11 @@ let command_of_string str =
         let revision = if revision = "" then None else Some revision
         and directory = Some directory in
         GitClone { url ; revision ; directory }
-    | Lst [ Sym "approve" ; (Lst _ as s) ] ->
-        Approve { subcommand = command_of_sexpr s ; timeout = None }
-    | Lst [ Sym "approve" ; Sym timeout ; s ] ->
+    | Lst [ Sym "approve" ; Sym comment ; s ] ->
+        Approve { subcommand = command_of_sexpr s ; timeout = None ; comment }
+    | Lst [ Sym "approve" ; Sym timeout ; Sym comment ; s ] ->
         let timeout = Some (float_of_string timeout) in
-        Approve { subcommand = command_of_sexpr s ; timeout }
+        Approve { subcommand = command_of_sexpr s ; timeout ; comment }
     | Lst (Sym "sequence" :: cmds) ->
         Sequence { subcommands = List.map command_of_sexpr cmds }
     | Lst [ Sym "retry" ; s ; Sym up_to ] ->
@@ -178,10 +178,15 @@ let string_of_command ?max_depth cmd =
         Lst [ Sym "git-clone" ; Str url ; Str r ; Str d ]
     | GitClone { url ; revision = None ; directory = Some d } ->
         Lst [ Sym "git-clone" ; Str url ; Str "" ; Str d ]
-    | Approve { timeout = None } -> (* FIXME: missing subcommand *)
-        Lst [ Sym "approve" ]
-    | Approve { timeout = Some t } ->
-        Lst [ Sym "approve" ; Sym (string_of_float t) ]
+    | Approve { subcommand ; timeout = None ; comment } ->
+        Lst [ Sym "approve" ;
+              Sym comment ;
+              sexpr_of_command ?max_depth subcommand ]
+    | Approve { subcommand ; timeout = Some t ; comment } ->
+        Lst [ Sym "approve" ;
+              Sym (string_of_float t) ;
+              Sym comment ;
+              sexpr_of_command ?max_depth subcommand ]
     | Sequence { subcommands } ->
         Lst (Sym "sequence" ::
              (List.map (sexpr_of_command ?max_depth) subcommands))

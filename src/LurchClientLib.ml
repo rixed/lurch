@@ -87,7 +87,9 @@ let disabled b = attr "disabled" (if b then "true" else "false")
 
 let tech_text str = txt_span ~a:[class_ "tech"] str
 
-let textarea ?key ?a l = elt "textarea" ?key ?a l
+let textarea ?id ?key ?(a=[]) l =
+  let a = option_map_default a (fun id -> attr "id" id :: a) id in
+  elt "textarea" ?key ~a l
 
 let select ?id ?key ?(a=[]) ?selected options =
   let a = option_map_default a (fun id -> attr "id" id :: a) id in

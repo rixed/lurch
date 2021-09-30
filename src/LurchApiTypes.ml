@@ -27,7 +27,7 @@ struct
     | GitClone of
         { url : string ; revision : string option ; directory : string option }
     | Approve of
-        { subcommand : t ; timeout : float option }
+        { subcommand : t ; timeout : float option ; comment : string }
     | Sequence of
         { subcommands : t list }
     | Retry of

@@ -99,7 +99,8 @@ struct
           | 5 ->
               Api.Command.Approve {
                 subcommand = get (int_of_string (getv 1)) ;
-                timeout = getn float_of_string 2 }
+                timeout = getn float_of_string 2 ;
+                comment = getv 3 }
           | 6 ->
               Api.Command.Sequence
                 { subcommands = List.map (get % int_of_string) (list (getv 1)) }
@@ -147,10 +148,11 @@ struct
           "command_git_clone",
           [| "url", url ; "revision", or_null identity revision ;
              "directory", or_null identity directory |]
-      | Approve { subcommand ; timeout } ->
+      | Approve { subcommand ; timeout ; comment } ->
           "command_approve",
           [| "subcommand", insert_or_update subcommand ;
-             "timeout", or_null string_of_float timeout |]
+             "timeout", or_null string_of_float timeout ;
+             "comment", comment |]
       | Sequence { subcommands } ->
           let ids = List.map insert_or_update subcommands in
           "command_sequence",

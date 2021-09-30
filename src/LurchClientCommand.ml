@@ -92,12 +92,15 @@ let rec edit_as_form ?(build_isolation=Normal) ~editor ?dom_id command =
           input_text ?id:(id "revision") ~label:"Revision:" ~a
             ~placeholder:"master…" (revision |? "") ;
           input_text ?id:(id "directory") ~label:"Directory:" ~a (directory |? "") ]
-    | Approve { subcommand ; timeout } ->
+    | Approve { subcommand ; timeout ; comment } ->
         div [
           p [ text "Wait for a manual approval before running the given \
                     subcommand. If no confirmation is received before the optional \
                     timeout expires then the subcommand is not executed and this \
                     command is considered a failure." ] ;
+          div [
+            p [ text "Text for user:" ] ;
+            textarea ?id:(id "comment") ~a [ text comment ] ] ;
           input_text ?id:(id "timeout") ~label:"Timeout:" ~units:"seconds" ~a
             ~placeholder:"seconds…" (option_map_default "" string_of_float timeout) ;
           edit_as_form ~editor ?dom_id:(id "subcommand") subcommand ]
@@ -191,8 +194,9 @@ let rec command_of_form_exc document dom_id =
         Api.Command.GitClone { url ; revision ; directory }
     | "approve" ->
         let subcommand = opt_subcommand "subcommand"
-        and timeout = option_map float_of_string (value_opt "timeout") in
-        Api.Command.Approve { subcommand ; timeout }
+        and timeout = option_map float_of_string (value_opt "timeout")
+        and comment = value ~def:"" "comment" in
+        Api.Command.Approve { subcommand ; timeout ; comment }
     | "sequence" ->
         let subcommand i =
           command_of_form_exc document (id (string_of_int i)) in
@@ -305,13 +309,14 @@ let rec view run =
                 []
             | Some dir ->
                 [ text " into directory " ; config_txt dir ; text "." ])) ]
-    | Approve { subcommand } ->
+    | Approve { subcommand ; comment } ->
         div [
           (match run.confirmation_msg with
           | None ->
               (* Still not confirmed: *)
               let msg_dom_id = "run_confirm_msg_" ^ string_of_int run.id in
               div [
+                (if comment <> "" then p [ text comment ] else no_elt) ;
                 p [ text "Waiting since " ;
                     text (date_of_ts run.created) ] ;
                 input_text ~label:"Leave a message:" ~id:msg_dom_id
