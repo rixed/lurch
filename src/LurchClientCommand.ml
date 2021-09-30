@@ -26,7 +26,7 @@ let rec edit_as_form ?(build_isolation=Normal) ~editor ?dom_id command =
         [ "chroot" ; "docker" ]
     | Normal ->
         [ "nop" ; "shell" ; "git-clone" ; "approve" ; "sequence" ; "retry" ;
-          "try" ] in
+          "try" ; "pause" ] in
   let label_of_operation op =
     let l = Api.Command.name_of_operation op in
     if not (List.mem l command_labels) then
@@ -132,7 +132,15 @@ let rec edit_as_form ?(build_isolation=Normal) ~editor ?dom_id command =
           h3 [ text "Command" ] ;
           edit_as_form ~editor ?dom_id:(id "subcommand") subcommand ;
           h3 [ text "Fallback" ] ;
-          edit_as_form ~editor ?dom_id:(id "on_failure") on_failure ]) ]
+          edit_as_form ~editor ?dom_id:(id "on_failure") on_failure ]
+    | Pause { duration ; subcommand } ->
+        div [
+          p [ text "Pause for the given amount of time before starting the \
+                    specified subcommand." ] ;
+          input_text ?id:(id "duration") ~label:"Duration:" ~units:"seconds" ~a
+            ~placeholder:"seconds…" (string_of_float duration) ;
+          h3 [ text "Command" ] ;
+          edit_as_form ~editor ?dom_id:(id "subcommand") subcommand ]) ]
 
 let edit ~editor ?dom_id command =
   edit_as_form ~build_isolation:TopLevel ~editor ?dom_id command
@@ -203,6 +211,10 @@ let rec command_of_form_exc document dom_id =
         let subcommand = opt_subcommand "subcommand"
         and on_failure = opt_subcommand "on_failure" in
         Api.Command.Try { subcommand ; on_failure }
+    | "pause" ->
+        let subcommand = opt_subcommand "subcommand"
+        and duration = float_of_string (value ~def:"0" "duration") in
+        Api.Command.Pause { duration ; subcommand }
     | _ ->
         invalid_arg "command_of_form_exc" in
   Api.Command.{ id = 0 ; operation }
@@ -333,7 +345,11 @@ let rec view run =
           p [ text "try:" ] ;
           view_subcommand subcommand ;
           p [ text "on failure:" ] ;
-          view_subcommand on_failure ]) ;
+          view_subcommand on_failure ]
+    | Pause { duration ; subcommand } ->
+        div [
+          p [ text ("Pause for "^ string_of_float duration ^" seconds, then:") ] ;
+          view_subcommand subcommand ]) ;
     (match run.started, run.pid, run.stopped with
     | None, _, _ ->
         p ~a:[ class_ "status" ]

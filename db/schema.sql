@@ -99,6 +99,14 @@ create table command_try (
   foreign key (on_failure) references command (id)
 );
 
+create table command_pause (
+  command int,
+  subcommand int not null,
+  duration float,
+  foreign key (command) references command (id) on delete cascade,
+  foreign key (subcommand) references command (id)
+);
+
 -- Now we have named program:
 
 -- Append only tables so we can go back in history, see previous runs etc:
@@ -298,6 +306,15 @@ create view list_running_sequences as
     r.stopped is null and
     -- but all started subcommands are:
     coalesce(r2.all_stopped, true);
+
+create view list_running_pauses as
+  select
+    r.id as run,
+    c.duration,
+    c.subcommand
+  from run r
+  join command_pause c on c.command = r.command
+  where r.stopped is null;
 
 -- List all pending command_approve commands, possibly with the corresponding
 -- confirmation message

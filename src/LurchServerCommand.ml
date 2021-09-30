@@ -273,6 +273,7 @@ let start_terminal run =
   | Approve _
   | Sequence _
   | Retry _
+  | Pause _
   | Try _ ->
       invalid_arg "start_terminal: not a terminal"
 
@@ -283,6 +284,20 @@ let finish_run run exit_status =
       (if exit_status = 0 then "completed" else "failed") in
   Db.LogLine.insert run.id 1 line ;
   Db.Run.stop run.id exit_status
+
+let step_pauses () =
+  let now = Unix.gettimeofday () in
+  Db.ListRunningPauses.get () |>
+  Enum.iter (fun pause ->
+    match pause.Api.ListRunningPauses.run.started with
+    | Some started ->
+        if now -. started >= pause.duration then (
+          Db.LogLine.insert pause.run.id 1 "Pause is over, proceeding" ;
+          Db.Run.stop pause.run.id 0)
+    | None ->
+        let line = "Pause for "^ string_of_float pause.duration ^"s" in
+        Db.LogLine.insert pause.run.id 1 line ;
+        Db.Run.start pause.run.id)
 
 let step_waiting () =
   Db.ListWaitingTerminals.get () |>
@@ -481,6 +496,8 @@ let step () =
   step_approvals () ;
   (* Check if some isolation layer have to be build: *)
   step_isolation () ;
+  (* Check if some pauses are over: *)
+  step_pauses () ;
   (* Start all waiting terminals: *)
   step_waiting ()
 

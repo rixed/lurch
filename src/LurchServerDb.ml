@@ -63,7 +63,7 @@ struct
     let tables = [| "command_isolate" ; "command_chroot" ; "command_docker" ;
                     "command_shell" ; "command_git_clone" ; "command_approve" ;
                     "command_sequence" ; "command_retry" ; "command_try" ;
-                    "command_nop" |] in
+                    "command_nop" ; "command_pause" |] in
     let operation =
       array_find_mapi (fun i ->
         let params = [| string_of_int id |] in
@@ -113,6 +113,10 @@ struct
                   on_failure =  get (int_of_string (getv 2)) }
           | 9 ->
               Api.Command.Nop
+          | 10 ->
+              Api.Command.Pause
+                { subcommand = get (int_of_string (getv 1)) ;
+                  duration = float_of_string (getv 2) }
           | _ ->
               assert false)
         )
@@ -159,6 +163,10 @@ struct
           "command_try",
           [| "subcommand", insert_or_update subcommand ;
              "on_failure", insert_or_update on_failure |]
+      | Pause { duration ; subcommand } ->
+          "command_pause",
+          [| "duration", string_of_float duration ;
+             "subcommand", insert_or_update subcommand |]
     in
     let params = Array.map snd field_params in
     let command_id =
@@ -587,6 +595,23 @@ struct
         run = Run.get (getv int_of_string 0) ;
         step_count = getv int_of_string 1 ;
         all_success = getv bool_of_string 2 })
+end
+
+module ListRunningPauses =
+struct
+  let get () =
+    let cnx = get_cnx () in
+    let res =
+      cnx#exec ~expect:[Tuples_ok]
+        "select run, duration, subcommand from list_running_pauses" in
+    log.debug "%d pauses are unfinished." res#ntuples ;
+    Enum.init res#ntuples (fun i ->
+      let getv conv j = conv (res#getvalue i j) in
+      log.debug "Got tuple %a" (Array.print String.print) (res#get_tuple i) ;
+      Api.ListRunningPauses.{
+        run = Run.get (getv int_of_string 0) ;
+        duration = getv float_of_string 1 ;
+        subcommand = getv int_of_string 2 })
 end
 
 module ListWaitingTerminals =

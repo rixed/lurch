@@ -34,6 +34,8 @@ struct
         { subcommand : t ; up_to : int }
     | Try of
         { subcommand : t ; on_failure : t }
+    | Pause of
+        { duration : float ; subcommand : t }
     [@@deriving json]
 
   and t = { id : int ; operation : operation }
@@ -45,7 +47,8 @@ struct
         f u cmd
     | Isolate { subcommand }
     | Approve { subcommand }
-    | Retry { subcommand } ->
+    | Retry { subcommand }
+    | Pause { subcommand } ->
         let u = fold f u subcommand in
         f u cmd
     | Sequence { subcommands } ->
@@ -72,6 +75,7 @@ struct
     | Sequence _ -> "sequence"
     | Retry _ -> "retry"
     | Try _ -> "try"
+    | Pause _ -> "pause"
 end
 
 module Status =
@@ -201,6 +205,14 @@ struct
     { run : Run.t ;
       step_count : int ;
       all_success : bool }
+end
+
+module ListRunningPauses =
+struct
+  type t =
+    { run : Run.t ;
+      duration : float ;
+      subcommand : int }
 end
 
 module ListPendingApprovals =
