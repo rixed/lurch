@@ -27,7 +27,7 @@ struct
     | GitClone of
         { url : string ; revision : string option ; directory : string option }
     | Approve of
-        { timeout : float option }
+        { subcommand : t ; timeout : float option }
     | Sequence of
         { subcommands : t list }
     | Retry of
@@ -41,9 +41,10 @@ struct
 
   let rec fold f u cmd =
     match cmd.operation with
-    | Nop | Chroot _ | Docker _ | Shell _ | GitClone _ | Approve _ ->
+    | Nop | Chroot _ | Docker _ | Shell _ | GitClone _ ->
         f u cmd
     | Isolate { subcommand }
+    | Approve { subcommand }
     | Retry { subcommand } ->
         let u = fold f u subcommand in
         f u cmd

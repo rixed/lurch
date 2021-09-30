@@ -97,7 +97,8 @@ struct
                   directory = getn identity 3 }
           | 5 ->
               Api.Command.Approve {
-                timeout = getn float_of_string 1 }
+                subcommand = get (int_of_string (getv 1)) ;
+                timeout = getn float_of_string 2 }
           | 6 ->
               Api.Command.Sequence
                 { subcommands = List.map (get % int_of_string) (list (getv 1)) }
@@ -139,9 +140,10 @@ struct
           "command_git_clone",
           [| "url", url ; "revision", or_null identity revision ;
              "directory", or_null identity directory |]
-      | Approve { timeout } ->
+      | Approve { subcommand ; timeout } ->
           "command_approve",
-          [| "timeout", or_null string_of_float timeout |]
+          [| "subcommand", insert_or_update subcommand ;
+             "timeout", or_null string_of_float timeout |]
       | Sequence { subcommands } ->
           let ids = List.map insert_or_update subcommands in
           "command_sequence",
@@ -620,7 +622,7 @@ struct
       cnx#exec ~expect:[Tuples_ok]
         "select run, extract(epoch from time), message \
         from list_pending_approval order by time" in
-    log.debug "%d approves are waiting." res#ntuples ;
+    log.debug "%d approvals are waiting." res#ntuples ;
     Enum.init res#ntuples (fun i ->
       log.debug "Got tuple %a" (Array.print String.print) (res #get_tuple i) ;
       Api.ListPendingApprovals.{

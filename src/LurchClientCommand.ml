@@ -92,14 +92,15 @@ let rec edit_as_form ?(build_isolation=Normal) ~editor ?dom_id command =
           input_text ?id:(id "revision") ~label:"Revision:" ~a
             ~placeholder:"master…" (revision |? "") ;
           input_text ?id:(id "directory") ~label:"Directory:" ~a (directory |? "") ]
-    | Approve { timeout } ->
+    | Approve { subcommand ; timeout } ->
         div [
-          p [ text "Wait for a manual approval from the user. The page \
-                    displaying the run will have a button that the user must \
-                    click. If no approval is received before the optional \
-                    timeout expires then this command is considered a failure." ] ;
+          p [ text "Wait for a manual approval before running the given \
+                    subcommand. If no confirmation is received before the optional \
+                    timeout expires then the subcommand is not executed and this \
+                    command is considered a failure." ] ;
           input_text ?id:(id "timeout") ~label:"Timeout:" ~units:"seconds" ~a
-            ~placeholder:"seconds…" (option_map_default "" string_of_float timeout) ]
+            ~placeholder:"seconds…" (option_map_default "" string_of_float timeout) ;
+          edit_as_form ~editor ?dom_id:(id "subcommand") subcommand ]
     | Sequence { subcommands } ->
         let lis =
           List.mapi (fun i subcommand ->
@@ -181,8 +182,9 @@ let rec command_of_form_exc document dom_id =
         and directory = value_opt "directory" in
         Api.Command.GitClone { url ; revision ; directory }
     | "approve" ->
-        let timeout = option_map float_of_string (value_opt "timeout") in
-        Api.Command.Approve { timeout }
+        let subcommand = opt_subcommand "subcommand"
+        and timeout = option_map float_of_string (value_opt "timeout") in
+        Api.Command.Approve { subcommand ; timeout }
     | "sequence" ->
         let subcommand i =
           command_of_form_exc document (id (string_of_int i)) in
@@ -291,7 +293,7 @@ let rec view run =
                 []
             | Some dir ->
                 [ text " into directory " ; config_txt dir ; text "." ])) ]
-    | Approve { timeout } ->
+    | Approve { subcommand } ->
         div [
           (match run.confirmation_msg with
           | None ->
@@ -310,7 +312,8 @@ let rec view run =
                 if msg <> "" then
                   [ text " with message: " ; text msg ]
                 else
-                  [ text " with no message" ])) ]
+                  [ text " with no message" ])) ;
+          view_subcommand subcommand ]
     | Sequence { subcommands } ->
         let num_steps = List.length subcommands in
         div [

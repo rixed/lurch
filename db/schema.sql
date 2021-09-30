@@ -65,8 +65,10 @@ create table command_git_clone (
 
 create table command_approve (
   command int,
+  subcommand int not null,
   timeout float,
-  foreign key (command) references command (id) on delete cascade
+  foreign key (command) references command (id) on delete cascade,
+  foreign key (subcommand) references command (id)
 );
 
 create table command_sequence (

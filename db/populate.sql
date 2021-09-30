@@ -11,8 +11,9 @@ insert into command_shell (command, line) values
   ((select max(id) from command), 'make');
 
 insert into command default values;
-insert into command_approve (command, timeout) values
+insert into command_approve (command, subcommand, timeout) values
   ((select max(id) from command),
+   (select max(command) from command_shell),
    864000); -- 10 days
 
 insert into command default values;
