@@ -237,7 +237,9 @@ let command_timeout = ref (Some 600.)
 let start_terminal run =
   match run.Api.Run.command.operation with
   | Nop ->
-      failwith "Asked to exec the Nop command!"
+      Db.LogLine.insert run.id 1 "No-operation" ;
+      Db.Run.start run.id ;
+      Db.Run.stop run.id 0 ;
   | Shell { line ; timeout } ->
       let args = [| "/bin/sh"; "-c"; line |] in
       start_process run timeout args

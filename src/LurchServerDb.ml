@@ -62,7 +62,8 @@ struct
     let cnx = get_cnx () in
     let tables = [| "command_isolate" ; "command_chroot" ; "command_docker" ;
                     "command_shell" ; "command_git_clone" ; "command_approve" ;
-                    "command_sequence" ; "command_retry" ; "command_try" |] in
+                    "command_sequence" ; "command_retry" ; "command_try" ;
+                    "command_nop" |] in
     let operation =
       array_find_mapi (fun i ->
         let params = [| string_of_int id |] in
@@ -110,6 +111,8 @@ struct
               Api.Command.Try
                 { subcommand = get (int_of_string (getv 1)) ;
                   on_failure =  get (int_of_string (getv 2)) }
+          | 9 ->
+              Api.Command.Nop
           | _ ->
               assert false)
         )
@@ -122,7 +125,7 @@ struct
     let table, field_params =
       match c.Api.Command.operation with
       | Nop ->
-          failwith "Cannot store a Nop operation"
+          "command_nop", [||]
       | Isolate { builder ; subcommand } ->
           "command_isolate",
           [| "builder", insert_or_update builder ;
