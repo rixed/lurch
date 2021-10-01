@@ -55,14 +55,6 @@ create table command_shell (
   foreign key (command) references command (id) on delete cascade
 );
 
-create table command_git_clone (
-  command int,
-  url text not null,
-  revision text,
-  directory text,
-  foreign key (command) references command (id) on delete cascade
-);
-
 create table command_nop (
   command int,
   foreign key (command) references command (id) on delete cascade
@@ -281,7 +273,6 @@ create view list_waiting_terminals as
   from run r
   join (
     select command from command_shell union
-    select command from command_git_clone union
     select command from command_nop
   ) c on r.command = c.command
   where

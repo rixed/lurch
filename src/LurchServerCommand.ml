@@ -265,17 +265,6 @@ let start_terminal run =
   | Shell { line ; timeout } ->
       let args = [| "/bin/sh"; "-c"; line |] in
       start_process run timeout args
-  | GitClone { url ; revision ; directory } ->
-      let revision = revision |? "master"
-      and directory = directory |? "clone" in
-      (* FIXME: wont work if revision is a hash: *)
-      let args =
-        (* Leave it to /bin/sh to figure out the paths! *)
-        [| "/bin/sh" ; "-c" ;
-           "git clone --depth 1 --shallow-submodules --no-tags \
-            --branch "^ shell_quote revision ^" "^
-            shell_quote url ^" "^ shell_quote directory |] in
-      start_process run !command_timeout args
   | Chroot _ | Docker _ ->
       (* Run the creation of the isolation layer as any other
        * command, so it can itself be isolated.

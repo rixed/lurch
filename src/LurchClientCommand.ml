@@ -25,8 +25,8 @@ let rec edit_as_form ?(build_isolation=Normal) ~editor ?dom_id command =
     | Isolation ->
         [ "chroot" ; "docker" ]
     | Normal ->
-        [ "nop" ; "shell" ; "git-clone" ; "approve" ; "sequence" ; "retry" ;
-          "try" ; "pause" ] in
+        [ "nop" ; "shell" ; "approve" ; "sequence" ; "retry" ; "try" ;
+          "pause" ] in
   let label_of_operation op =
     let l = Api.Command.name_of_operation op in
     if not (List.mem l command_labels) then
@@ -84,15 +84,6 @@ let rec edit_as_form ?(build_isolation=Normal) ~editor ?dom_id command =
           p [ input_text ?id:(id "line") ~label:"Command:" ~a ~placeholder:"shell…" line ] ;
           p [ input_text ?id:(id "timeout") ~label:"Timeout:" ~units:"seconds" ~a
                 ~placeholder:"seconds…" (option_map_default "" string_of_float timeout) ] ]
-    | GitClone { url ; revision ; directory } ->
-        div [
-          p [ text "Clones a git directory and checkout a given revision." ] ;
-          p [ input_text ?id:(id "url") ~label:"Repository:" ~a
-                ~placeholder:"url…" url ] ;
-          p [ input_text ?id:(id "revision") ~label:"Revision:" ~a
-                ~placeholder:"master…" (revision |? "") ] ;
-          p [ input_text ?id:(id "directory") ~label:"Directory:" ~a
-                (directory |? "") ] ]
     | Approve { subcommand ; timeout ; comment ; autosuccess } ->
         div [
           p [ text "Wait for a manual approval before running the given \
@@ -209,11 +200,6 @@ let rec command_of_form_exc document dom_id =
         let line = value ~def:"" "line"
         and timeout = option_map float_of_string (value_opt "timeout") in
         Api.Command.Shell { line ; timeout }
-    | "git-clone" ->
-        let url = value ~def:"" "url"
-        and revision = value_opt "revision"
-        and directory = value_opt "directory" in
-        Api.Command.GitClone { url ; revision ; directory }
     | "approve" ->
         let subcommand = opt_subcommand "subcommand"
         and timeout = option_map float_of_string (value_opt "timeout")
@@ -317,21 +303,6 @@ let rec view run =
                 [ text " and time out after " ;
                   config_txt (string_of_float t) ;
                   text "." ]) ]
-    | GitClone { url ; revision ; directory } ->
-        div [
-          p (
-            text "Git-clone repository " ::
-            config_txt url ::
-            (match revision with
-            | None ->
-                []
-            | Some rev ->
-                [ text " at revision " ; config_txt rev ; text "." ]) @
-            (match directory with
-            | None ->
-                []
-            | Some dir ->
-                [ text " into directory " ; config_txt dir ; text "." ])) ]
     | Approve { subcommand ; comment } ->
         div [
           (match run.confirmation_msg with

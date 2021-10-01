@@ -3,8 +3,8 @@
 -- a simple build, no isolation
 
 insert into command default values;
-insert into command_git_clone (command, url) values
-  ((select max(id) from command), 'https://github.com/rixed/lurch.git');
+insert into command_shell (command, line) values
+  ((select max(id) from command), 'git clone https://github.com/rixed/lurch.git');
 
 insert into command default values;
 insert into command_shell (command, line) values
@@ -19,7 +19,7 @@ insert into command_approve (command, subcommand, timeout) values
 insert into command default values;
 insert into command_sequence (command, subcommands) values
   ((select max(id) from command),
-   ARRAY[(select max(command) from command_git_clone),
+   ARRAY[(select min(command) from command_shell),
          (select max(command) from command_approve),
          (select max(command) from command_shell)]);
 

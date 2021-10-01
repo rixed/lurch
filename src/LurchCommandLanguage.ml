@@ -130,15 +130,6 @@ let command_of_string str =
     | Lst [ Sym "shell" ; Str line ; Sym timeout ] ->
         let timeout = Some (float_of_string timeout) in
         Shell { line ; timeout }
-    | Lst [ Sym "git-clone" ; Str url ] ->
-        GitClone { url ; revision = None ; directory = None }
-    | Lst [ Sym "git-clone" ; Str url ; Str revision ] ->
-        let revision = Some revision in
-        GitClone { url ; revision ; directory = None }
-    | Lst [ Sym "git-clone" ; Str url ; Str revision ; Str directory ] ->
-        let revision = if revision = "" then None else Some revision
-        and directory = Some directory in
-        GitClone { url ; revision ; directory }
     | Lst [ Sym "approve" ; Sym timeout ; Sym comment ; Sym autosuccess ; s ] ->
         let timeout =
           if timeout = "" then None else Some (float_of_string timeout) in
@@ -179,14 +170,6 @@ let string_of_command ?max_depth cmd =
         Lst [ Sym "shell" ; Str line ]
     | Shell { line ; timeout = Some t } ->
         Lst [ Sym "shell" ; Str line ; Sym (string_of_float t) ]
-    | GitClone { url ; revision = None ; directory = None } ->
-        Lst [ Sym "git-clone" ; Str url ]
-    | GitClone { url ; revision = Some r ; directory = None } ->
-        Lst [ Sym "git-clone" ; Str url ; Str r ]
-    | GitClone { url ; revision = Some r ; directory = Some d } ->
-        Lst [ Sym "git-clone" ; Str url ; Str r ; Str d ]
-    | GitClone { url ; revision = None ; directory = Some d } ->
-        Lst [ Sym "git-clone" ; Str url ; Str "" ; Str d ]
     | Approve { subcommand ; timeout ; comment ; autosuccess } ->
         Lst [ Sym "approve" ;
               Sym (match timeout with None -> ""
@@ -228,16 +211,16 @@ let string_of_command ?max_depth cmd =
 *)
 
 (*$= string_of_sexpr & ~printer:identity
-  "(sequence (git-clone \"url\") (shell \"make\"))" \
+  "(sequence (pause 10) (shell \"make\"))" \
     (linearize \
       (string_of_sexpr (Lst [ Sym "sequence" ; \
-        Lst [ Sym "git-clone" ; Str "url" ] ; \
+        Lst [ Sym "pause" ; Sym "10" ] ; \
         Lst [ Sym "shell" ; Str "make" ] ])))
 *)
 
 (*$= string_of_command & ~printer:identity
-  "(sequence (git-clone \"url\") (shell \"make\"))" \
+  "(sequence (pause 4) (shell \"make\"))" \
     (linearize \
       (string_of_command (command_of_string \
-        "(sequence (git-clone \"url\") (shell \"make\"))")))
+        "(sequence (pause 4) (shell \"make\"))")))
 *)

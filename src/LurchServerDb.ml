@@ -65,9 +65,9 @@ struct
   let rec get id =
     let cnx = get_cnx () in
     let tables = [| "command_isolate" ; "command_chroot" ; "command_docker" ;
-                    "command_shell" ; "command_git_clone" ; "command_approve" ;
-                    "command_sequence" ; "command_retry" ; "command_try" ;
-                    "command_nop" ; "command_pause" |] in
+                    "command_shell" ; "command_approve" ; "command_sequence" ;
+                    "command_retry" ; "command_try" ; "command_nop" ;
+                    "command_pause" |] in
     let operation =
       array_find_mapi (fun i ->
         let params = [| string_of_int id |] in
@@ -96,30 +96,25 @@ struct
               Api.Command.Shell
                 { line = getv 1 ; timeout = getn float_of_string 2 }
           | 4 ->
-              Api.Command.GitClone
-                { url = getv 1 ;
-                  revision = getn identity 2 ;
-                  directory = getn identity 3 }
-          | 5 ->
               Api.Command.Approve {
                 subcommand = get (int_of_string (getv 1)) ;
                 timeout = getn float_of_string 2 ;
                 comment = getv 3 ;
                 autosuccess = Lang.sql_bool_of_string (getv 4) }
-          | 6 ->
+          | 5 ->
               Api.Command.Sequence
                 { subcommands = List.map (get % int_of_string) (list (getv 1)) }
-          | 7 ->
+          | 6 ->
               Api.Command.Retry
                 { subcommand = get (int_of_string (getv 1)) ;
                   up_to = int_of_string (getv 2) }
-          | 8 ->
+          | 7 ->
               Api.Command.Try
                 { subcommand = get (int_of_string (getv 1)) ;
                   on_failure =  get (int_of_string (getv 2)) }
-          | 9 ->
+          | 8 ->
               Api.Command.Nop
-          | 10 ->
+          | 9 ->
               Api.Command.Pause
                 { subcommand = get (int_of_string (getv 1)) ;
                   duration = float_of_string (getv 2) }
@@ -149,10 +144,6 @@ struct
       | Shell { line ; timeout } ->
           "command_shell",
           [| "line", line ; "timeout", or_null string_of_float timeout |]
-      | GitClone { url ; revision ; directory } ->
-          "command_git_clone",
-          [| "url", url ; "revision", or_null identity revision ;
-             "directory", or_null identity directory |]
       | Approve { subcommand ; timeout ; comment ; autosuccess } ->
           "command_approve",
           [| "subcommand", insert_or_update subcommand ;
