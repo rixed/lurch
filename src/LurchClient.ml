@@ -268,6 +268,27 @@ let update =
       let run = { (Api.Run.of_json_string res) with logs } in
       return ~c:[Vdom.Cmd.echo (`GetMoreLogs run)]
         State.{ st with dialog = ShowRun { run ; more_logs_expected = true } }
+  | `CancelRun run_id ->
+      let ajax =
+        Http_get { url = lurch_url "cancel_run" [ "id", string_of_int run_id ] ;
+                   callback = fun r -> `CancelledRun r } in
+      return ~c:[ajax] State.{ st with waiting = true ; refresh_msg = None }
+  | `CancelledRun (Ok _) ->
+      (* If we are displaying runs then refresh otherwise keep calm: *)
+      let c =
+        match st.State.dialog with
+        | ShowRun { run } ->
+            (* Even if we are not displaying the very run that has been
+             * cancelled it could still be part of the displayed run, so
+             * refresh in any cases: *)
+            [ Vdom.Cmd.echo (`GetRun (run.id, run.logs)) ]
+        | ListPastRuns _ ->
+            [ Vdom.Cmd.echo `GetPastProgramRuns ]
+        | _ ->
+            [] in
+      return ~c st
+  | `CancelledRun (Error e) ->
+      return State.{ st with dialog = ShowError e ; waiting = false }
   | `GetMoreLogs run ->
       let offset = Array.length run.Api.Run.logs
       and limit = logs_limit in

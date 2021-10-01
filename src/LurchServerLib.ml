@@ -198,3 +198,47 @@ let random_string () =
                ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                0123456789" in
   String.init 8 (fun _ -> chars.[Random.int (String.length chars)])
+
+(* Unix signals from `kill -L` (on Linux):
+ *
+ *   1 HUP      2 INT      3 QUIT     4 ILL      5 TRAP     6 ABRT     7 BUS
+ *   8 FPE      9 KILL    10 USR1    11 SEGV    12 USR2    13 PIPE    14 ALRM
+ *  15 TERM    16 STKFLT  17 CHLD    18 CONT    19 STOP    20 TSTP    21 TTIN
+ *  22 TTOU    23 URG     24 XCPU    25 XFSZ    26 VTALRM  27 PROF    28 WINCH
+ *  29 POLL    30 PWR     31 SYS
+ *
+ * FIXME: get those numbers for the current OS from some C function
+ *)
+let to_unix_signal s =
+  let open Sys in
+  if s = sigabrt then 6 else
+  if s = sigalrm then 14 else
+  if s = sigfpe then 8 else
+  if s = sighup then 1 else
+  if s = sigill then 4 else
+  if s = sigint then 2 else
+  if s = sigkill then 9 else
+  if s = sigpipe then 13 else
+  if s = sigquit then 3 else
+  if s = sigsegv then 11 else
+  if s = sigterm then 15 else
+  if s = sigusr1 then 10 else
+  if s = sigusr2 then 12 else
+  if s = sigchld then 17 else
+  if s = sigcont then 18 else
+  if s = sigstop then 19 else
+  if s = sigtstp then 20 else
+  if s = sigttin then 21 else
+  if s = sigttou then 22 else
+  if s = sigvtalrm then 26 else
+  if s = sigprof then 27 else
+  if s = sigbus then 7 else
+  if s = sigpoll then 29 else
+  if s = sigsys then 31 else
+  if s = sigtrap then 5 else
+  if s = sigurg then 23 else
+  if s = sigxcpu then 24 else
+  if s = sigxfsz then 25 else
+  (* [caml_convert_signal_number] does pass the actual number when it does
+   * not know a signal: *)
+  s

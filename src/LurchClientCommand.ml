@@ -338,14 +338,16 @@ let rec view run =
           | None ->
               (* Still not confirmed: *)
               let msg_dom_id = "run_confirm_msg_" ^ string_of_int run.id in
-              div [
-                (if comment <> "" then p [ text comment ] else no_elt) ;
-                p [ text "Waiting since " ;
-                    text (date_of_ts run.created) ] ;
-                input_text ~label:"Leave a message:" ~id:msg_dom_id
-                  ~placeholder:"message…" "" ;
-                button "Approve"
-                  (`ConfirmCommand (run.id, msg_dom_id, run.top_run)) ]
+              div (
+                (if comment <> "" then [ p [ text comment ] ] else []) @
+                (if run.stopped = None then [
+                  p [ text "Waiting since " ;
+                      text (date_of_ts run.created) ] ;
+                  input_text ~label:"Leave a message:" ~id:msg_dom_id
+                    ~placeholder:"message…" "" ;
+                  button "Approve"
+                    (`ConfirmCommand (run.id, msg_dom_id, run.top_run)) ]
+                else []))
           | Some msg ->
               p (
                 text "Confirmed " ::
@@ -402,7 +404,8 @@ let rec view run =
     (match run.stopped, option_map Api.ExitStatus.of_code run.exit_code with
     | None, _ ->
         p ~a:[ class_ "status" ]
-          [ text "Not finished." ]
+          [ text "Not finished." ;
+            button "Cancel" (`CancelRun run.id) ]
     | Some stopped, None ->
         p ~a:[ class_ "status" ]
           [ text "Stopped at " ;

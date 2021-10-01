@@ -292,13 +292,15 @@ create view list_running_sequences as
   select
     r.id,
     coalesce(r2.step_count, 0) as step_count,
-    coalesce(r2.all_success, true) as all_success -- so far
+    coalesce(r2.all_success, true) as all_success, -- so far
+    r2.exit_codes
   from run r
   join command_sequence s on r.command = s.command
   -- to get the step number and check all previous steps have finished
   left outer join (
     select
       parent_run,
+      array_agg(exit_code) filter (where exit_code is not null) as exit_codes,
       -- count the stopped steps:
       count(*) as step_count,
       bool_and(exit_code is not null and exit_code = 0) as all_success,
@@ -338,5 +340,12 @@ create view list_pending_approval as
 -- List all containers/chroot that have to be build
 create view list_pending_isolations as
   select r.id as run, r.created from run r
-    join command_isolate c on c.command = r.command
-    where r.stopped is null;
+  join command_isolate c on c.command = r.command
+  where r.stopped is null;
+
+-- List all ongoing runs which parent has stopped (to propagate cancellations)
+create view list_obsolete_runs as
+  select r.id
+  from run r
+  join run rp on r.parent_run = rp.id
+  where r.stopped is null and rp.stopped is not null;

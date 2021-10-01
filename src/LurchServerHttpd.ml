@@ -72,6 +72,9 @@ let get_run run_id =
   Api.Run.to_json_buffer |>
   print_data
 
+let cancel_run run_id =
+  Db.Run.cancel run_id
+
 (* Record the run in the DB but does not start any process just yet.
  * Leave this to `lurch step`. *)
 let start_program name =
@@ -119,6 +122,9 @@ let serve () =
     | "get_run" ->
         let run_id = get_param "id" int_of_string in
         get_run run_id
+    | "cancel_run" ->
+        let run_id = get_param "id" int_of_string in
+        cancel_run run_id
     | "start_program" ->
         let name = get_param "program" identity in
         start_program name

@@ -104,8 +104,8 @@ let do_monitor_run isolation_run cgroup pid stdout_r stderr_r cmd_timeout run_id
         let exit_code =
           match status with
           | WEXITED s -> s
-          | WSIGNALED s -> -s
-          | WSTOPPED s -> -s (* Should not be reported to us though *)
+          | WSIGNALED s -> to_unix_signal s
+          | WSTOPPED s -> to_unix_signal s (* Should not be reported to us though *)
         in
         List.iter (ignore % read_lines) fds ;
         (* Collect cgroup data: *)
@@ -131,9 +131,31 @@ let do_monitor_run isolation_run cgroup pid stdout_r stderr_r cmd_timeout run_id
                   fd :: fds
                 else fds
               else fd :: fds
-            ) [] fds)
-  in
+            ) [] fds) in
+  let check_cancellation =
+    let last_check = ref 0. in
+    fun () ->
+      (* From time to time, also check in the DB that this process has not been
+       * cancelled. If so, kill it. *)
+      let delay_before_hard_kill = 30. in
+      let check_every = 10. in
+      let now = Unix.gettimeofday () in
+      if now -. !last_check > check_every then (
+        last_check := now ;
+        let run = Db.Run.get run_id in
+        match run.Api.Run.stopped with
+        | Some stopped ->
+            let signal, signame =
+              if now -. stopped >= delay_before_hard_kill
+              then Sys.sigkill, "kill" else Sys.sigterm, "term" in
+            log.warning "Signaling pid %d (from cancelled run#%d) with signal %s."
+              pid run.id signame ;
+            Unix.kill pid signal
+        | None ->
+            ()
+      ) in
   let rec loop fds =
+    check_cancellation () ;
     check_termination fds ;
     let fds = check_outputs fds in
     loop fds in
@@ -314,8 +336,13 @@ let step_sequences () =
         | Sequence { subcommands ; _ } -> Array.of_list subcommands
         | _ -> assert false in
       if not seq.all_success then (
-        log.info "Sequence #%d failed." seq.run.id ;
-        finish_run seq.run 1
+        let exit_code =
+          try Array.find (fun c -> c <> 0) seq.exit_codes
+          with Not_found ->
+            log.error "Unsuccessful sequence with no error exit code?" ;
+            1 in
+        log.info "Sequence #%d failed, exit_code is %d." seq.run.id exit_code ;
+        finish_run seq.run exit_code
       ) else if seq.step_count >= Array.length subcommands then (
         log.info "Sequence #%d finished." seq.run.id ;
         finish_run seq.run 0
@@ -478,6 +505,13 @@ let step_isolation () =
               stop_with_stats isolate status)
       | _ -> assert false))
 
+(* If a run has been cancelled then all it's children must also be cancelled. *)
+let propagate_cancellations () =
+  Db.ListObsoleteRuns.get () |>
+  Enum.iter (fun run_id ->
+    log.warning "Propagate cancellation to run#%d" run_id ;
+    Db.Run.cancel run_id)
+
 (* Get the list of old unstarted top runs and delete them if there are too
  * many *)
 let expire_old_runs () =
@@ -495,6 +529,9 @@ let step () =
   (* Timeout unstarted top run commands, as there could be tons of old ones if the
    * stepper was not run for long *)
   expire_old_runs () ;
+  (* Propagate run cancellation down the command tree, down to killing started
+   * processes: *)
+  propagate_cancellations () ;
   (* TODO: also timeout running commands *)
   step_sequences () ;
   (* Check if some waits have been confirmed: *)

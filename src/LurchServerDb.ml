@@ -44,10 +44,13 @@ let or_null conv = function
   | None -> null
   | Some v -> conv v
 
-let list s =
-  assert (String.length s >= 2) ;
-  let s = String.sub s 1 (String.length s - 2) in
-  String.split_on_char ',' s |> List.filter ((<>) "")
+let list = function
+  | "" ->
+      []
+  | s ->
+      assert (String.length s >= 2) ;
+      let s = String.sub s 1 (String.length s - 2) in
+      String.split_on_char ',' s |> List.filter ((<>) "")
 
 let array =
   Array.of_list % list
@@ -337,6 +340,22 @@ struct
       Printf.sprintf "Cannot expire run %d: %s\n" run_id
         (Printexc.to_string e) |>
       failwith
+
+  let cancel run_id =
+    let cnx = get_cnx () in
+    let params = [| string_of_int run_id |] in
+    log.debug "Cancelling run %d" run_id ;
+    try
+      cnx#exec ~expect:[Command_ok] ~params (
+        "update run set stopped = now(), exit_code = "
+          ^ string_of_int Api.ExitStatus.cancelled ^
+        "where id = $1 and stopped is null") |>
+      ignore
+    with e ->
+      Printf.sprintf "Cannot cancel run %d: %s\n" run_id
+        (Printexc.to_string e) |>
+      failwith
+
 end
 
 module ListLogLines =
@@ -592,7 +611,7 @@ struct
     let cnx = get_cnx () in
     let res =
       cnx#exec ~expect:[Tuples_ok]
-        "select id, step_count, all_success \
+        "select id, exit_codes, step_count, all_success \
          from list_running_sequences" in
     log.debug "%d sequences are unfinished." res#ntuples ;
     Enum.init res#ntuples (fun i ->
@@ -600,8 +619,10 @@ struct
       log.debug "Got tuple %a" (Array.print String.print) (res#get_tuple i) ;
       Api.ListRunningSequences.{
         run = Run.get (getv int_of_string 0) ;
-        step_count = getv int_of_string 1 ;
-        all_success = getv bool_of_string 2 })
+        exit_codes = array (getv identity 1) |>
+                     Array.map int_of_string ;
+        step_count = getv int_of_string 2 ;
+        all_success = getv bool_of_string 3 })
 end
 
 module ListRunningPauses =
@@ -693,4 +714,16 @@ struct
         "select id from run where parent_run = $1 and command = $2" in
     assert (res#ntuples = 1) ;
     Run.get (int_of_string (res#getvalue 0 0))
+end
+
+module ListObsoleteRuns =
+struct
+  let get () =
+    let cnx = get_cnx () in
+    let res =
+      cnx#exec ~expect:[Tuples_ok]
+        "select id from list_obsolete_runs" in
+    Enum.init res#ntuples (fun i ->
+      let getv conv j = conv (res#getvalue i j) in
+      getv int_of_string 0)
 end

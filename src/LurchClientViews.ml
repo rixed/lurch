@@ -237,7 +237,7 @@ let show_run run more_logs_expected =
       | Some _, Some name ->
           button "Run Again" (`StartProgram name)
       | _ ->
-          no_elt ] ;
+          button "Cancel" (`CancelRun run.id) ] ;
     h2 [ text "Logs" ] ;
     let header =
       simple_table_header [ "run" ; "file" ; "time" ; "text" ] in

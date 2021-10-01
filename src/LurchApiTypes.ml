@@ -245,6 +245,7 @@ module ListRunningSequences =
 struct
   type t =
     { run : Run.t ;
+      exit_codes : int array ;
       step_count : int ;
       all_success : bool }
 end
