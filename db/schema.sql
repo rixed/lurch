@@ -144,8 +144,12 @@ create table run (
   mem_usr int,
   mem_sys int,
 
-  -- <0 values are for signal numbers or expiration (-128, started = stopped)
-  exit_status int,
+  -- 0..: process exit code
+  -- -128..-1: killed by signal -value
+  -- -129: expiration
+  -- -130: cancellation
+  -- see LurchApiTypes.ExitCode
+  exit_code int,
 
   primary key (id),
   foreign key (command) references command (id) on delete cascade,
@@ -217,7 +221,7 @@ create view top_level_runs as
     min(r2.created) as created,
     min(r2.started) as started,
     max(r2.stopped) as stopped,
-    r1.exit_status,
+    r1.exit_code,
     sum(r2.cpu_usr) as cpu_usr,
     sum(r2.cpu_sys) as cpu_sys,
     sum(r2.mem_usr) as mem_usr,
@@ -225,7 +229,7 @@ create view top_level_runs as
   from
     run r1
     left outer join run r2 on r1.id = coalesce(r2.top_run, r2.id)
-  group by r1.id, r1.command, r1.exit_status;
+  group by r1.id, r1.command, r1.exit_code;
 
 -- The list of last program runs:
 -- Corresponds to API type ListPastRuns
@@ -240,7 +244,7 @@ create view list_past_runs as
     r.cpu_sys as cpu_sys,
     r.mem_usr as mem_usr,
     r.mem_sys as mem_sys,
-    r.exit_status as exit_status
+    r.exit_code as exit_code
   from
     program p
     join top_level_runs r on p.command = r.command
@@ -255,7 +259,7 @@ create view list_programs as
     r.id as last_run,
     r.started as last_start,
     r.stopped as last_stop,
-    r.exit_status as last_exit_status
+    r.exit_code as last_exit_code
   from
     program p
     left outer join (
@@ -266,7 +270,7 @@ create view list_programs as
                              r.created = lr.last_created
   where
     p.deleted <= p.created
-  group by p.name, r.id, r.started, r.stopped, r.exit_status;
+  group by p.name, r.id, r.started, r.stopped, r.exit_code;
 
 -- All terminal commands that have not been started yet:
 create view list_waiting_terminals as
@@ -297,7 +301,7 @@ create view list_running_sequences as
       parent_run,
       -- count the stopped steps:
       count(*) as step_count,
-      bool_and(exit_status is not null and exit_status = 0) as all_success,
+      bool_and(exit_code is not null and exit_code = 0) as all_success,
       -- Have all subcommands stopped already?
       bool_and(stopped is not null) as all_stopped
     from run

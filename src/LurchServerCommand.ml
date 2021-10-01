@@ -101,7 +101,7 @@ let do_monitor_run isolation_run cgroup pid stdout_r stderr_r cmd_timeout run_id
     | 0, _ -> ()
     | _, status ->
         log.info "Monitored process %a" print_exit_status status ;
-        let exit_status =
+        let exit_code =
           match status with
           | WEXITED s -> s
           | WSIGNALED s -> -s
@@ -111,7 +111,7 @@ let do_monitor_run isolation_run cgroup pid stdout_r stderr_r cmd_timeout run_id
         (* Collect cgroup data: *)
         let cpu_usr, cpu_sys = CGroup.cpuacct_read cgroup in
         let mem_usr, mem_sys = CGroup.memory_read cgroup in
-        Db.Run.stop run_id exit_status
+        Db.Run.stop run_id exit_code
                     ?cpu_usr ?cpu_sys ?mem_usr ?mem_sys ;
         (* Also deletes the cgroup: *)
         CGroup.remove cgroup ;
@@ -277,13 +277,13 @@ let start_terminal run =
   | Try _ ->
       invalid_arg "start_terminal: not a terminal"
 
-let finish_run run exit_status =
+let finish_run run exit_code =
   let line =
     Printf.sprintf "%s %s."
       (Api.Command.name_of_operation run.Api.Run.command.Api.Command.operation)
-      (if exit_status = 0 then "completed" else "failed") in
+      (if exit_code = 0 then "completed" else "failed") in
   Db.LogLine.insert run.id 1 line ;
-  Db.Run.stop run.id exit_status
+  Db.Run.stop run.id exit_code
 
 let step_pauses () =
   let now = Unix.gettimeofday () in
@@ -332,11 +332,11 @@ let step_sequences () =
         log.debug "Created new run#%d" run_id)))
 
 let finish_as_subrun run subrun =
-  match subrun.Api.Run.exit_status with
-  | Some exit_status ->
+  match subrun.Api.Run.exit_code with
+  | Some exit_code ->
       log.info "Subcommand running as #%d finished with status %d"
-        subrun.id exit_status ;
-      finish_run run exit_status
+        subrun.id exit_code ;
+      finish_run run exit_code
   | None ->
       log.info "Must wait for subcommand, still running as #%d" subrun.id
 
@@ -355,12 +355,12 @@ let step_approvals () =
           | Approve { subcommand ; timeout } ->
               subcommand, timeout
           | _ -> assert false in
-        let unblock exit_status =
-          let proceed = exit_status >= 0 || approve.autosuccess in
+        let unblock exit_code =
+          let proceed = exit_code >= 0 || approve.autosuccess in
           (* Start the subcommand before stopping the wait so this is less of
            * a problem to die here: *)
           let line = Printf.sprintf "%s. %s subcommand"
-            (if exit_status >= 0 then "Confirmed" else "Timing out")
+            (if exit_code >= 0 then "Confirmed" else "Timing out")
             (if proceed then "Proceeding to" else "Cancelling") in
           Db.LogLine.insert approve.run.id 1 line ;
           if proceed then (
@@ -416,7 +416,7 @@ let step_isolation () =
         start_terminal builder_run ;
         Db.Run.start isolate.id
       | [| builder |] ->
-          (match builder.Api.Run.exit_status with
+          (match builder.Api.Run.exit_code with
           | None ->
               (* Wait for the builder to finish before starting the
                * subcommand: *)
@@ -458,7 +458,7 @@ let step_isolation () =
             Db.Run.stop isolate.Api.Run.id status
                         ?cpu_usr ?cpu_sys ?mem_usr ?mem_sys
           in
-          (match subrun.Api.Run.exit_status with
+          (match subrun.Api.Run.exit_code with
           | None ->
               log.debug "Waiting longer for the isolated subcommand (run #%d) \
                          to complete."

@@ -399,7 +399,7 @@ let rec view run =
           [ text "Started at " ;
             text (date_of_ts started) ;
             text "." ]) ;
-    (match run.stopped, run.exit_status with
+    (match run.stopped, option_map Api.ExitStatus.of_code run.exit_code with
     | None, _ ->
         p ~a:[ class_ "status" ]
           [ text "Not finished." ]
@@ -408,23 +408,10 @@ let rec view run =
           [ text "Stopped at " ;
             text (date_of_ts stopped) ;
             text "." ]
-    | Some stopped, Some 0 ->
+    | Some stopped, Some status ->
         p ~a:[ class_ "status" ]
           [ text "Stopped at " ;
             text (date_of_ts stopped) ;
             text "." ; br () ;
-            txt_span ~a:[ class_ "success" ] "Success" ]
-    | Some stopped, Some s when s > 0 ->
-        p ~a:[ class_ "status" ]
-          [ text "Stopped at " ;
-            text (date_of_ts stopped) ;
-            text "." ; br () ;
-            txt_span ~a:[ class_ "failure" ]
-              ("Failed with code "^ string_of_int s) ]
-    | Some stopped, Some s ->
-        p ~a:[ class_ "status" ]
-          [ text "Stopped at " ;
-            text (date_of_ts stopped) ;
-            text "." ; br () ;
-            txt_span ~a:[ class_ "filled" ]
-              ("Killed with signal "^ string_of_int s) ]) ]
+            txt_span ~a:[ class_ (class_of_status status) ]
+              (Api.ExitStatus.to_string status) ]) ]

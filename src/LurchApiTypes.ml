@@ -118,6 +118,47 @@ struct
   let array_of_json_string : string -> t array = [%of_json: t array]
 end
 
+module ExitStatus =
+struct
+  type t =
+    | Completed
+    | Failed of int
+    | Interrupted of int (* signal number *)
+    | CouldNotStart
+    (* Runs cancelled when the stepper start because they were too old. Not
+     * to be confused with timed out runs, which are Interrupted: *)
+    | Expired
+    | Cancelled
+
+  (* THose are specific to lurch: *)
+  let expired = -129
+  let cancelled = -130
+
+  let of_code code =
+    if code = expired then Expired else
+    if code = cancelled then Cancelled else
+    if code < 0 && code >= -128 then Interrupted (-code) else
+    if code = 127 then CouldNotStart else
+    if code = 0 then Completed else
+    if code > 0 then Failed code else
+    assert false
+
+  let to_string = function
+    | Completed -> "Completed"
+    | Failed e -> "Exited with code "^ string_of_int e
+    | Interrupted s -> "Interrupted by signal "^ string_of_int s
+    | CouldNotStart -> "Could not start"
+    | Expired -> "Expired"
+    | Cancelled -> "Cancelled"
+
+  type err_level = Ok | Warn | Err
+
+  let err_level = function
+    | Completed -> Ok
+    | Failed _ | CouldNotStart | Expired -> Err
+    | Interrupted _ | Cancelled -> Warn
+end
+
 module Run =
 struct
   type t =
@@ -131,7 +172,7 @@ struct
       stopped : float option ;
       cgroup : string option ;
       pid : int option ;
-      exit_status : int option ;
+      exit_code : int option ;
       (* Children are reified here because it makes displaying runs much
        * easier for the client: *)
       children : t array ;
@@ -165,7 +206,7 @@ struct
       cpu_sys : float option ;
       mem_usr : int option ;
       mem_sys : int option ;
-      exit_status : int option }
+      exit_code : int option }
     [@@deriving json]
 
   type ts = t array
@@ -186,7 +227,7 @@ struct
       last_run : int option ;
       last_start : float option ;
       last_stop : float option ;
-      last_exit_status : int option }
+      last_exit_code : int option }
     [@@deriving json]
 
   type ts = t array

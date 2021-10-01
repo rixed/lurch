@@ -212,7 +212,7 @@ struct
            extract(epoch from r.created), \
            extract(epoch from r.started), \
            extract(epoch from r.stopped), \
-           r.cgroup, r.pid, r.exit_status, \
+           r.cgroup, r.pid, r.exit_code, \
            array(select id from run where parent_run = r.id order by id) \
              as children, \
            w.message, c.path, d.instance, d.docker_id \
@@ -239,7 +239,7 @@ struct
       stopped = getn float_of_string 6 ;
       cgroup = getn identity 7 ;
       pid = getn int_of_string 8 ;
-      exit_status = getn int_of_string 9 ;
+      exit_code = getn int_of_string 9 ;
       children = array (getv identity 10) |>
                  Array.map (get % int_of_string) ;
       confirmation_msg = getn identity 11 ;
@@ -280,19 +280,19 @@ struct
       failwith
 
   let stop run_id ?cpu_usr ?cpu_sys ?mem_usr ?mem_sys
-           exit_status =
+           exit_code =
     let cnx = get_cnx () in
     let params =
       [| string_of_int run_id ;
-         string_of_int exit_status ;
+         string_of_int exit_code ;
          or_null string_of_float cpu_usr ;
          or_null string_of_float cpu_sys ;
          or_null string_of_int mem_usr ;
          or_null string_of_int mem_sys |] in
-    log.debug "Stopping run %d with exit_status %d, \
+    log.debug "Stopping run %d with exit_code %d, \
                CPU consumption: %a usr + %a sys, \
                MEM consumption: %a ram+swp + %a kernel"
-      run_id exit_status
+      run_id exit_code
       (Option.print Float.print) cpu_usr
       (Option.print Float.print) cpu_sys
       (Option.print Int.print) mem_usr
@@ -300,7 +300,7 @@ struct
     try
       cnx#exec ~expect:[Command_ok] ~params
         "update run set stopped = now(), \
-                        exit_status = $2, \
+                        exit_code = $2, \
                         cpu_usr = $3, cpu_sys = $4, \
                         mem_usr = $5, mem_sys = $6 \
          where id = $1" |>
@@ -327,9 +327,11 @@ struct
     let params = [| string_of_int run_id |] in
     log.debug "Expiring run %d" run_id ;
     try
-      cnx#exec ~expect:[Command_ok] ~params
-        "update run set started = now(), stopped = now(), exit_status = -128 \
-         where id = $1" |>
+      (* Note: Leave this run alone if it has started *)
+      cnx#exec ~expect:[Command_ok] ~params (
+        "update run set started = now(), stopped = now(), exit_code = "
+          ^ string_of_int Api.ExitStatus.expired ^
+        "where id = $1 and started is null") |>
       ignore
     with e ->
       Printf.sprintf "Cannot expire run %d: %s\n" run_id
@@ -527,7 +529,7 @@ struct
                  extract(epoch from started), \
                  extract(epoch from stopped), \
                  cpu_usr, cpu_sys, mem_usr, mem_sys, \
-                 exit_status
+                 exit_code
          from list_past_runs \
          where true " ^
          (if oldest_top_run = None then "" else
@@ -550,7 +552,7 @@ struct
         cpu_sys = getn float_of_string 6 ;
         mem_usr = getn int_of_string 7 ;
         mem_sys = getn int_of_string 8 ;
-        exit_status = getn int_of_string 9 })
+        exit_code = getn int_of_string 9 })
 end
 
 (*
@@ -567,7 +569,7 @@ struct
                 last_run, \
                 extract(epoch from last_start), \
                 extract(epoch from last_stop),
-                last_exit_status \
+                last_exit_code \
          from list_programs order by name" in
     Enum.init res#ntuples (fun i ->
       let getv conv j = conv (res#getvalue i j) in
@@ -578,7 +580,7 @@ struct
         last_run = getn int_of_string 1 ;
         last_start = getn float_of_string 2 ;
         last_stop = getn float_of_string 3 ;
-        last_exit_status = getn int_of_string 4 })
+        last_exit_code = getn int_of_string 4 })
 end
 
 (*

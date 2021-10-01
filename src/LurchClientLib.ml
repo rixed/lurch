@@ -1,3 +1,4 @@
+module Api = LurchApiTypes
 open Js_of_ocaml
 open Vdom
 
@@ -50,6 +51,11 @@ let filename_of_fd = function
   | 1 -> "out"
   | 2 -> "err"
   | n -> string_of_int n
+
+let class_of_status = function
+  | Api.ExitStatus.Completed -> "success"
+  | Failed _ | CouldNotStart -> "failure"
+  | Interrupted _ | Expired | Cancelled -> "killed"
 
 (*
  * View

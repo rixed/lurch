@@ -34,19 +34,16 @@ let spinner st =
       | Some msg ->
           txt_span ~a:[ onclick (fun _ -> msg) ] "refresh" ]
 
-let outcome exit_status =
-  match exit_status with
-  | Some s ->
-      if s = 0 then
-        "Completed", "green"
-      else if s = 127 then
-        "Cannot start", "red"
-      else if s = ~-128 then
-        "Expired", "red"
-      else if s > 0 then
-        "Failed (status "^ string_of_int s ^")", "red"
-      else
-        "Interrupted (status "^ string_of_int s ^")", "orange"
+let outcome exit_code =
+  let color_of_status = function
+    | Api.ExitStatus.Ok -> "green"
+    | Warn -> "orange"
+    | Err -> "red" in
+  match exit_code with
+  | Some code ->
+      let status = Api.ExitStatus.of_code code in
+      Api.ExitStatus.to_string status,
+      color_of_status (Api.ExitStatus.err_level status)
   | None ->
       "waiting", ""
 
@@ -89,7 +86,7 @@ let list_past_runs runs =
           td ~a:[ class_ "click" ; goto_run ] [
             text ((option_map string_of_int r.mem_usr |? "n.a") ^" usr + "^
                   (option_map string_of_int r.mem_sys |? "n.a") ^" sys") ] ;
-          let outcome, color = outcome r.exit_status in
+          let outcome, color = outcome r.exit_code in
           let bgcolor = bgcolor_of color in
           td ~a:[ class_ "click" ; goto_run ; bgcolor]
             [ text outcome ] ]))) ]
@@ -127,7 +124,7 @@ let list_programs_and_run programs =
               | Some last_stop ->
                   [ td ~a:[ class_ "click time" ; goto_run ]
                       [ text (date_of_ts last_stop) ] ;
-                    let txt, color = outcome p.last_exit_status in
+                    let txt, color = outcome p.last_exit_code in
                     let bgcolor = bgcolor_of color in
                     td ~a:[ class_ "click" ; goto_run ; bgcolor ]
                       [ text txt ] ]))))
@@ -200,7 +197,7 @@ let program_editor program editor last_runs =
                 [ text (date_of_ts (option_get r.started)) ] ;
               td ~a:[ class_ "time" ]
                 [ text (date_of_tsn r.stopped |? "running") ] ] @
-          [ let txt, color = outcome r.exit_status in
+          [ let txt, color = outcome r.exit_code in
             let bgcolor = bgcolor_of color in
             td ~a:[ bgcolor ] [ text txt ] ]))) ] ]
 
