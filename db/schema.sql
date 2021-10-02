@@ -88,13 +88,15 @@ create table command_retry (
   foreign key (subcommand) references command (id)
 );
 
-create table command_try (
+create table command_if (
   command int,
-  subcommand int not null,
-  on_failure int not null,
+  condition int not null,
+  consequent int not null,
+  alternative int not null,
   foreign key (command) references command (id) on delete cascade,
-  foreign key (subcommand) references command (id),
-  foreign key (on_failure) references command (id)
+  foreign key (condition) references command (id),
+  foreign key (consequent) references command (id),
+  foreign key (alternative) references command (id)
 );
 
 create table command_pause (
@@ -317,6 +319,23 @@ create view list_running_pauses as
     c.subcommand
   from run r
   join command_pause c on c.command = r.command
+  where r.stopped is null;
+
+create view list_running_ifs as
+  select
+    r.id as run,
+    r.created as created,
+    c.condition as condition,
+    c.consequent as consequent,
+    c.alternative as alternative,
+    r_cond.id as condition_run,
+    r_cons.id as consequent_run,
+    r_alt.id as alternative_run
+  from run r
+  join command_if c on c.command = r.command
+  left outer join run r_cond on (r_cond.parent_run = r.id and r_cond.command = c.condition)
+  left outer join run r_cons on (r_cons.parent_run = r.id and r_cons.command = c.consequent)
+  left outer join run r_alt on (r_alt.parent_run = r.id and r_alt.command = c.alternative)
   where r.stopped is null;
 
 -- List all pending command_approve commands, possibly with the corresponding

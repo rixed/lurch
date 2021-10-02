@@ -107,7 +107,7 @@ struct
     let cnx = get_cnx () in
     let tables = [| "command_isolate" ; "command_chroot" ; "command_docker" ;
                     "command_exec" ; "command_approve" ; "command_sequence" ;
-                    "command_retry" ; "command_try" ; "command_nop" ;
+                    "command_retry" ; "command_if" ; "command_nop" ;
                     "command_pause" |] in
     let operation =
       array_find_mapi (fun i ->
@@ -153,9 +153,10 @@ struct
                 { subcommand = get (int_of_string (getv 1)) ;
                   up_to = int_of_string (getv 2) }
           | 7 ->
-              Api.Command.Try
-                { subcommand = get (int_of_string (getv 1)) ;
-                  on_failure =  get (int_of_string (getv 2)) }
+              Api.Command.If
+                { condition = get (int_of_string (getv 1)) ;
+                  consequent = get (int_of_string (getv 2)) ;
+                  alternative = get (int_of_string (getv 3)) }
           | 8 ->
               Api.Command.Nop (int_of_string (getv 1))
           | 9 ->
@@ -206,10 +207,11 @@ struct
           "command_retry",
           [| "subcommand", insert_or_update subcommand ;
              "up_to", string_of_int up_to |]
-      | Try { subcommand ; on_failure } ->
-          "command_try",
-          [| "subcommand", insert_or_update subcommand ;
-             "on_failure", insert_or_update on_failure |]
+      | If { condition ; consequent ; alternative } ->
+          "command_if",
+          [| "condition", insert_or_update condition ;
+             "consequent", insert_or_update consequent ;
+             "alternative", insert_or_update alternative |]
       | Pause { duration ; subcommand } ->
           "command_pause",
           [| "duration", string_of_float duration ;
@@ -680,6 +682,30 @@ struct
         run = Run.get (getv int_of_string 0) ;
         duration = getv float_of_string 1 ;
         subcommand = getv int_of_string 2 })
+end
+
+module ListRunningIfs =
+struct
+  let get () =
+    let cnx = get_cnx () in
+    let res =
+      cnx#exec ~expect:[Tuples_ok]
+        "select run, condition, consequent, alternative, \
+                condition_run, consequent_run, alternative_run \
+         from list_running_ifs order by created" in
+    log.debug "%d ifs are unfinished." res#ntuples ;
+    Enum.init res#ntuples (fun i ->
+      let getv conv j = conv (res#getvalue i j) in
+      let getn conv j = if res#getisnull i j then None else Some (getv conv j) in
+      log.debug "Got tuple %a" (Array.print String.print) (res#get_tuple i) ;
+      Api.ListRunningIfs.{
+        run = Run.get (getv int_of_string 0) ;
+        condition = getv int_of_string 1 ;
+        consequent = getv int_of_string 2 ;
+        alternative = getv int_of_string 3 ;
+        condition_run = Option.map Run.get (getn int_of_string 4) ;
+        consequent_run = Option.map Run.get (getn int_of_string 5) ;
+        alternative_run = Option.map Run.get (getn int_of_string 6) })
 end
 
 module ListWaitingTerminals =

@@ -29,7 +29,7 @@ let rec edit_as_form ?(op_mode=Normal) ?(editable=true) ?dom_id command =
     | Isolation ->
         [ "chroot" ; "docker" ]
     | Normal ->
-        [ "no-op" ; "exec" ; "approve" ; "sequence" ; "retry" ; "try" ;
+        [ "no-op" ; "exec" ; "approve" ; "sequence" ; "retry" ; "if" ;
           "pause" ] in
   let label_of_operation op =
     let l = Api.Command.name_of_operation op in
@@ -142,14 +142,17 @@ let rec edit_as_form ?(op_mode=Normal) ?(editable=true) ?dom_id command =
           edit_as_form ~editable ?dom_id:(id "subcommand") subcommand ;
           input_text ?id:(id "up_to") ~label:"Up to:" ~units:"times" ~editable
             ~placeholder:"number…" (string_of_int up_to) ]
-    | Try { subcommand ; on_failure } ->
+    | If { condition ; consequent ; alternative } ->
         div [
-          p [ text "Execute the given subcommand. If it fails, also executes \
-                    the fallback subcommand." ] ;
-          h3 [ text "Command" ] ;
-          edit_as_form ~editable ?dom_id:(id "subcommand") subcommand ;
-          h3 [ text "Fallback" ] ;
-          edit_as_form ~editable ?dom_id:(id "on_failure") on_failure ]
+          p [ text "Execute the condition, and then either the consequent \
+                    or the alternative, depending on the success of the \
+                    condition." ] ;
+          h3 [ text "Condition" ] ;
+          edit_as_form ~editable ?dom_id:(id "condition") condition ;
+          h3 [ text "On Success" ] ;
+          edit_as_form ~editable ?dom_id:(id "consequent") consequent ;
+          h3 [ text "On Failure" ] ;
+          edit_as_form ~editable ?dom_id:(id "alternative") alternative ]
     | Pause { duration ; subcommand } ->
         div [
           p [ text "Pause for the given amount of time before starting the \
@@ -286,10 +289,11 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
         let subcommand = opt_subcommand "subcommand"
         and up_to = int_of_string (value ~def:"1" "up_to") in
         Api.Command.Retry { subcommand ; up_to }
-    | "try" ->
-        let subcommand = opt_subcommand "subcommand"
-        and on_failure = opt_subcommand "on_failure" in
-        Api.Command.Try { subcommand ; on_failure }
+    | "if" ->
+        let condition = opt_subcommand "condition"
+        and consequent = opt_subcommand "consequent"
+        and alternative = opt_subcommand "alternative" in
+        Api.Command.If { condition ; consequent ; alternative }
     | "pause" ->
         let subcommand = opt_subcommand "subcommand"
         and duration = float_of_string (value ~def:"0" "duration") in
@@ -409,12 +413,14 @@ let rec view run =
               config_txt (string_of_int up_to) ;
               text " times." ] ;
           view_subcommand subcommand ]
-    | Try { subcommand ; on_failure } ->
+    | If { condition ; consequent ; alternative } ->
         div [
-          p [ text "try:" ] ;
-          view_subcommand subcommand ;
-          p [ text "on failure:" ] ;
-          view_subcommand on_failure ]
+          p [ text "if:" ] ;
+          view_subcommand condition ;
+          p [ text "then:" ] ;
+          view_subcommand consequent ;
+          p [ text "else:" ] ;
+          view_subcommand alternative ]
     | Pause { duration ; subcommand } ->
         div [
           p [ text ("Pause for "^ string_of_float duration ^" seconds, then:") ] ;

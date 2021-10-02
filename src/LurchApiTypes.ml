@@ -32,8 +32,8 @@ struct
         { subcommands : t list }
     | Retry of
         { subcommand : t ; up_to : int }
-    | Try of
-        { subcommand : t ; on_failure : t }
+    | If of
+        { condition : t ; consequent : t ; alternative : t }
     | Pause of
         { duration : float ; subcommand : t }
     [@@deriving json]
@@ -54,8 +54,8 @@ struct
     | Sequence { subcommands } ->
         let u = List.fold_left (fold f) u subcommands in
         f u cmd
-    | Try { subcommand ; on_failure } ->
-        let u = f (fold f u subcommand) on_failure in
+    | If { condition ; consequent ; alternative } ->
+        let u = fold f (fold f (fold f u condition) consequent) alternative in
         f u cmd
 
   let iter f op = fold (fun () -> f) () op
@@ -73,7 +73,7 @@ struct
     | Approve _ -> "approve"
     | Sequence _ -> "sequence"
     | Retry _ -> "retry"
-    | Try _ -> "try"
+    | If _ -> "if"
     | Pause _ -> "pause"
 
   let rec string_of_operation =
@@ -106,9 +106,10 @@ struct
     | Retry { subcommand ; up_to } ->
         "Retry(subcommand:"^ to_string subcommand ^", up_to:"^
         string_of_int up_to ^")"
-    | Try { subcommand ; on_failure } ->
-        "Try(subcommand:"^ to_string subcommand ^", on_failure:"^
-        to_string on_failure ^")"
+    | If { condition ; consequent ; alternative } ->
+        "If(condition:"^ to_string condition ^
+        ", consequent:"^ to_string consequent ^
+        ", alternative:"^ to_string alternative ^")"
     | Pause { duration ; subcommand } ->
         "Pause(duration:"^ string_of_float duration ^", subcommand:"^
         to_string subcommand ^")"
@@ -298,6 +299,18 @@ struct
     { run : Run.t ;
       duration : float ;
       subcommand : int }
+end
+
+module ListRunningIfs =
+struct
+  type t =
+    { run : Run.t ;
+      condition : int ;
+      consequent : int ;
+      alternative : int ;
+      condition_run : Run.t option ;
+      consequent_run : Run.t option ;
+      alternative_run : Run.t option }
 end
 
 module ListPendingApprovals =

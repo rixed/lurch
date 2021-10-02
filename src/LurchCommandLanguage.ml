@@ -152,9 +152,10 @@ let command_of_string str =
     | Lst [ Sym "retry" ; s ; Sym up_to ] ->
         Retry { subcommand = command_of_sexpr s ;
                 up_to = int_of_string up_to }
-    | Lst [ Sym "try" ; s1 ; s2 ] ->
-        Try { subcommand = command_of_sexpr s1 ;
-              on_failure = command_of_sexpr s2 }
+    | Lst [ Sym "if" ; s1 ; s2 ; s3 ] ->
+        If { condition = command_of_sexpr s1 ;
+             consequent = command_of_sexpr s2 ;
+             alternative = command_of_sexpr s3 }
     | Lst [ Sym "pause" ; Sym duration ; s ] ->
         Pause { duration = float_of_string duration ;
                 subcommand = command_of_sexpr s }
@@ -203,10 +204,11 @@ let string_of_command ?max_depth cmd =
         Lst [ Sym "retry" ;
               sexpr_of_command ?max_depth subcommand ;
               Sym (string_of_int up_to) ]
-    | Try { subcommand ; on_failure } ->
-        Lst [ Sym "try" ;
-              sexpr_of_command ?max_depth subcommand ;
-              sexpr_of_command ?max_depth on_failure ]
+    | If { condition ; consequent ; alternative } ->
+        Lst [ Sym "if" ;
+              sexpr_of_command ?max_depth condition ;
+              sexpr_of_command ?max_depth consequent ;
+              sexpr_of_command ?max_depth alternative ]
     | Pause { duration ; subcommand } ->
         Lst [ Sym "pause" ;
               Sym (string_of_float duration) ;

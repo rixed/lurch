@@ -287,7 +287,7 @@ let start_terminal run =
   | Sequence _
   | Retry _
   | Pause _
-  | Try _ ->
+  | If _ ->
       invalid_arg "start_terminal: not a terminal"
 
 let finish_run run exit_code =
@@ -317,6 +317,44 @@ let step_waiting () =
   Enum.iter (fun run ->
     log_exceptions (fun () -> start_terminal run))
 
+let step_conditionals () =
+  Db.ListRunningIfs.get () |>
+  Enum.iter (fun if_ ->
+    log_exceptions (fun () ->
+      (* If the condition haven't started, start it: *)
+      match if_.Api.ListRunningIfs.condition_run with
+      | None ->
+          Db.Run.start if_.run.id ;
+          let cond_run =
+            Db.Run.insert ~top_run:if_.run.top_run ~parent_run:if_.run.id
+                          if_.condition in
+          let line = "Starting condition as #"^ string_of_int cond_run in
+          Db.LogLine.insert if_.run.id 1 line
+      | Some cond_run ->
+          (match cond_run.Api.Run.exit_code with
+          | None ->
+              log.debug "Waiting for the end of the condition"
+          | Some exit_code ->
+              let subcommand, subcommand_run =
+                if exit_code = 0 then if_.consequent, if_.consequent_run
+                                 else if_.alternative, if_.alternative_run in
+              (match subcommand_run with
+              | None ->
+                  log.info "New run for subcommand %d" subcommand ;
+                  let sub_run =
+                    Db.Run.insert ~top_run:if_.run.top_run ~parent_run:if_.run.id
+                                  subcommand in
+                  let line = "Starting subcommand as #"^ string_of_int sub_run in
+                  Db.LogLine.insert if_.run.id 1 line
+              | Some sub_run ->
+                  (match sub_run.Api.Run.exit_code with
+                  | None ->
+                      log.debug "Waiting for the end of the subcommand"
+                  | Some exit_code ->
+                      let line = "Ending if with exit_code "^ string_of_int exit_code in
+                      Db.LogLine.insert if_.run.id 1 line ;
+                      Db.Run.stop if_.run.id exit_code)))))
+
 (* Read the database looking for commands that should proceed: *)
 let step_sequences () =
   Db.ListRunningSequences.get () |>
@@ -342,8 +380,8 @@ let step_sequences () =
           seq.run.id seq.step_count ;
         let line = Printf.sprintf "Executing command #%d of sequence #%d"
           seq.step_count seq.run.command.id in
-        if seq.step_count = 0 then Db.Run.start seq.run.id ;
         Db.LogLine.insert seq.run.id 1 line ;
+        if seq.step_count = 0 then Db.Run.start seq.run.id ;
         let run_id =
           Db.Run.insert ~top_run:seq.run.top_run ~parent_run:seq.run.id
                         subcommands.(seq.step_count).Api.Command.id in
@@ -525,6 +563,8 @@ let step () =
   propagate_cancellations () ;
   (* TODO: also timeout running commands *)
   step_sequences () ;
+  (* Execute conditionals: *)
+  step_conditionals () ;
   (* Check if some waits have been confirmed: *)
   step_approvals () ;
   (* Check if some isolation layer have to be build: *)

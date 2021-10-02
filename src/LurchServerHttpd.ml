@@ -43,9 +43,10 @@ let rec check_isolation cmd =
       check_isolation subcommand
   | Sequence { subcommands } ->
       List.iter check_isolation subcommands
-  | Try { subcommand ; on_failure } ->
-      check_isolation subcommand ;
-      check_isolation on_failure
+  | If { condition ; consequent ; alternative } ->
+      check_isolation condition ;
+      check_isolation consequent ;
+      check_isolation alternative
   | _ ->
       failwith "Programs submitted via the GUI must be isolated"
 
