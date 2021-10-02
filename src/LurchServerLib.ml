@@ -1,6 +1,6 @@
 open Batteries
 
-let user = ref "rixed"
+let user = ref (try Sys.getenv "USER" with Not_found -> "JohnDoe")
 
 (* System *)
 
