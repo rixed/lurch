@@ -111,6 +111,13 @@ let array_find_mapi f a =
   with Exit ->
     Option.get !res
 
+let string_exists f s =
+  let rec loop i =
+    if i >= String.length s then false
+    else if f s.[i] then true
+    else loop (i + 1) in
+  loop 0
+
 let print_exit_status oc = function
   | Unix.WEXITED s -> Printf.fprintf oc "exited with status %d" s
   | Unix.WSIGNALED s -> Printf.fprintf oc "killed by signal %d" s

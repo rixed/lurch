@@ -36,21 +36,62 @@ let close () =
       cnx := None
   | None -> ()
 
-(* Quote SQL keywords (not strings, for this use [escape_string] *)
+(* Quote SQL keywords (not strings, for this use [escape_string]. *)
 let sql_quote s =
-  "\""^ s ^"\""
+  "\""^ s ^"\"" (* FIXME: escape double quotes from s *)
 
 let or_null conv = function
   | None -> null
   | Some v -> conv v
 
+(* Quoting a value for textual representation of an array value.
+ * "The array output routine will put double quotes around element values if
+ * they are empty strings, contain curly braces, delimiter characters, double
+ * quotes, backslashes, or white space, or match the word NULL. Double quotes
+ * and backslashes embedded in element values will be backslash-escaped. For
+ * numeric data types it is safe to assume that double quotes will never
+ * appear, but for textual data types one should be prepared to cope with
+ * either the presence or absence of quotes." -- postgresql manual *)
+let sql_array_quote s =
+  let need_quotes =
+    s = "" || s = "NULL" ||
+    string_exists (fun c -> c = '"' || c = '{' || c = '}' || c = ',' ||
+                            c = '\\' || c = ' ') s in
+  if need_quotes then
+    (* Actually escape + quote *)
+    let s = String.nreplace ~str:s ~sub:"\\" ~by:"\\\\" in
+    let s = String.nreplace ~str:s ~sub:"\"" ~by:"\\\"" in
+    "\""^ s ^"\""
+  else
+    s
+
+let sql_array_unquote s =
+  (* Because empty strings are quoted: *)
+  assert (String.length s > 0) ;
+  if s.[0] = '"' then (
+    (* Actually unquote: *)
+    assert (String.length s >= 2 && s.[String.length s - 1] = '"') ;
+    let s = String.sub s 1 (String.length s - 2) in
+    let s = String.nreplace ~str:s ~sub:"\\\"" ~by:"\"" in
+    let s = String.nreplace ~str:s ~sub:"\\\\" ~by:"\\" in
+    s
+  ) else
+    s
+
+let sql_of_string_array a =
+  (* TODO: BatArray.join *)
+  "{"^ String.join "," (Array.to_list (Array.map sql_array_quote a)) ^"}"
+
 let list = function
-  | "" ->
+  | "" | "{}" ->
       []
   | s ->
       assert (String.length s >= 2) ;
+      (* Remove the curly braces: *)
+      assert (s.[0] = '{' && s.[String.length s - 1] = '}') ;
       let s = String.sub s 1 (String.length s - 2) in
-      String.split_on_char ',' s |> List.filter ((<>) "")
+      String.split_on_char ',' s |>
+      List.map sql_array_unquote
 
 let array =
   Array.of_list % list
