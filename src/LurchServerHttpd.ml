@@ -37,7 +37,7 @@ let del_program name =
 (* Programs submitted via the GUI must not exec any non-isolated command: *)
 let rec check_isolation cmd =
   match cmd.Api.Command.operation with
-  | Api.Command.Nop | Isolate _ -> ()
+  | Api.Command.Nop _ | Isolate _ -> ()
   | Approve { subcommand }
   | Retry { subcommand } ->
       check_isolation subcommand

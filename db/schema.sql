@@ -60,6 +60,7 @@ create table command_exec (
 
 create table command_nop (
   command int,
+  exit_code int not null default 0,
   foreign key (command) references command (id) on delete cascade
 );
 

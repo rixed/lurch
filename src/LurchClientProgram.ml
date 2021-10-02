@@ -14,7 +14,7 @@ let init =
   let operation =
     Api.Command.Isolate {
       builder = command (Api.Command.Chroot { template = "busybox" }) ;
-      subcommand = command Api.Command.Nop } in
+      subcommand = command (Api.Command.Nop 0) } in
   { edited = Api.Program.{
       name = "" ; created = 0. ;
       command = command operation } ;

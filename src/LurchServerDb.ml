@@ -157,7 +157,7 @@ struct
                 { subcommand = get (int_of_string (getv 1)) ;
                   on_failure =  get (int_of_string (getv 2)) }
           | 8 ->
-              Api.Command.Nop
+              Api.Command.Nop (int_of_string (getv 1))
           | 9 ->
               Api.Command.Pause
                 { subcommand = get (int_of_string (getv 1)) ;
@@ -173,8 +173,9 @@ struct
     let cnx = get_cnx () in
     let table, field_params =
       match c.Api.Command.operation with
-      | Nop ->
-          "command_nop", [||]
+      | Nop exit_code ->
+          "command_nop",
+          [| "exit_code", string_of_int exit_code |]
       | Isolate { builder ; subcommand } ->
           "command_isolate",
           [| "builder", insert_or_update builder ;

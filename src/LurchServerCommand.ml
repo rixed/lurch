@@ -260,10 +260,11 @@ let command_timeout = ref (Some 600.)
  * commands. *)
 let start_terminal run =
   match run.Api.Run.command.operation with
-  | Nop ->
-      Db.LogLine.insert run.id 1 "No-operation" ;
+  | Nop exit_code ->
+      let line = "No-operation, returning "^ string_of_int exit_code in
+      Db.LogLine.insert run.id 1 line ;
       Db.Run.start run.id ;
-      Db.Run.stop run.id 0 ;
+      Db.Run.stop run.id exit_code ;
   | Exec { pathname ; args ; env ; timeout } ->
       start_process pathname ~args ~env ?timeout run
   | Chroot _ | Docker _ ->

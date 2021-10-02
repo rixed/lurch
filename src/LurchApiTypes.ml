@@ -15,7 +15,7 @@ let int_to_json_buffer d =
 module Command =
 struct
   type operation =
-    | Nop
+    | Nop of int (* exit code *)
     | Isolate of
         { builder : t ; subcommand : t }
     | Chroot of
@@ -43,7 +43,7 @@ struct
 
   let rec fold f u cmd =
     match cmd.operation with
-    | Nop | Chroot _ | Docker _ | Exec _ ->
+    | Nop _ | Chroot _ | Docker _ | Exec _ ->
         f u cmd
     | Isolate { subcommand }
     | Approve { subcommand }
@@ -65,7 +65,7 @@ struct
   let of_json_string : string -> t = [%of_json: t]
 
   let name_of_operation = function
-    | Nop -> "nop"
+    | Nop _ -> "no-op"
     | Isolate _ -> "isolate"
     | Chroot _ -> "chroot"
     | Docker _ -> "docker"
@@ -85,7 +85,7 @@ struct
         if s = "" then conv x else s ^", "^ conv x
       ) "" lst in
     function
-    | Nop ->
+    | Nop _ ->
         "Nop"
     | Isolate { builder ; subcommand } ->
         "Isolate(builder:"^ to_string builder ^

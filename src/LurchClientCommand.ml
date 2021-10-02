@@ -29,7 +29,7 @@ let rec edit_as_form ?(op_mode=Normal) ?(editable=true) ?dom_id command =
     | Isolation ->
         [ "chroot" ; "docker" ]
     | Normal ->
-        [ "nop" ; "exec" ; "approve" ; "sequence" ; "retry" ; "try" ;
+        [ "no-op" ; "exec" ; "approve" ; "sequence" ; "retry" ; "try" ;
           "pause" ] in
   let label_of_operation op =
     let l = Api.Command.name_of_operation op in
@@ -56,8 +56,11 @@ let rec edit_as_form ?(op_mode=Normal) ?(editable=true) ?dom_id command =
     op_selection ;
     (* Then the arguments of that specific operand: *)
     (match command.operation with
-    | Api.Command.Nop ->
-        p [ text "Nop has no argument" ] ; (* no_elt *)
+    | Api.Command.Nop exit_code ->
+        div [
+          p [ text "No-op does nothing but return the specified exit code." ] ;
+          input_text ?id:(id "exit_code") ~label:"Exit code:" ~editable
+            (string_of_int exit_code) ]
     | Isolate { builder ; subcommand } ->
         div [
           p [ text "This is the required first command, and will build an isolated \
@@ -126,7 +129,7 @@ let rec edit_as_form ?(op_mode=Normal) ?(editable=true) ?dom_id command =
             li [
               edit_as_form ~editable
                 ?dom_id:(id (string_of_int (List.length subcommands)))
-                { operation = Nop ; id = 0 } ] ]
+                { operation = Nop 0 ; id = 0 } ] ]
           else lis in
         div [
           p [ text "Executes a sequence of command, one after the other." ] ;
@@ -169,7 +172,7 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
     try command_of_form_exc ?add_input ?rem_input document (id suff)
     with e ->
       log ("Failed to build a command from the form: "^ Printexc.to_string e) ;
-      Api.Command.{ operation = Nop ; id = 0 } in
+      Api.Command.{ operation = Nop 0 ; id = 0 } in
   let value ?def suff =
     let id = id suff in
     match Js_browser.Document.get_element_by_id document id, def with
@@ -243,8 +246,9 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
      * work, but not for the operator itself so that sequence know where to
      * stop *)
     match value "op" with
-    | "nop" ->
-        Api.Command.Nop
+    | "no-op" ->
+        let exit_code = value ~def:"0" "exit_code" in
+        Api.Command.Nop (int_of_string exit_code)
     | "isolate" ->
         let builder = opt_subcommand "builder"
         and subcommand = opt_subcommand "subcommand" in
@@ -274,7 +278,7 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
         let rec loop lst i =
           match subcommand i with
           | exception _ -> List.rev lst
-          | { operation = Api.Command.Nop ; _ } -> loop lst (i + 1)
+          | { operation = Api.Command.Nop 0 ; _ } -> loop lst (i + 1)
           | s -> loop (s :: lst) (i + 1) in
         let subcommands = loop [] 0 in
         Api.Command.Sequence { subcommands }
@@ -319,8 +323,8 @@ let rec view run =
           ("#" ^ string_of_int run.id) ;
         text ")" ] ;
     (match run.command.operation with
-    | Nop ->
-        text "No Operation"
+    | Nop exit_code ->
+        text ("Returns exit code "^ string_of_int exit_code)
     | Isolate { builder ; subcommand } ->
         ol [
           li [

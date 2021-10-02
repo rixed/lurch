@@ -128,8 +128,8 @@ let command_of_string str =
     | Lst l -> List.map conv l
     | _ -> invalid_arg "of_string_lst" in
   let rec operation_of_sexpr = function
-    | Lst [ Sym "nop" ] ->
-        Nop
+    | Lst [ Sym "no-op" ; Sym exit_code ] ->
+        Nop (int_of_string exit_code)
     | Lst [ Sym "isolate" ; s1 ; s2 ] ->
         Isolate { builder = command_of_sexpr s1 ;
                   subcommand = command_of_sexpr s2 }
@@ -174,8 +174,8 @@ let string_of_command ?max_depth cmd =
   let lst_of_string conv l = Lst (List.map conv l) in
   let to_str s = Str s in
   let rec sexpr_of_operation ?max_depth = function
-    | Nop ->
-        Lst [ Sym "nop" ]
+    | Nop exit_code ->
+        Lst [ Sym "no-op" ; Sym (string_of_int exit_code) ]
     | Isolate { builder ; subcommand } ->
         Lst [ Sym "isolate" ;
               sexpr_of_command ?max_depth builder ;
