@@ -388,7 +388,8 @@ struct
       cnx#exec ~expect:[Command_ok] ~params (
         "update run set stopped = now(), exit_code = "
           ^ string_of_int Api.ExitStatus.cancelled ^
-        "where id = $1 and stopped is null") |>
+        ", started = coalesce(stopped, now()) \
+         where id = $1 and stopped is null") |>
       ignore
     with e ->
       Printf.sprintf "Cannot cancel run %d: %s\n" run_id
