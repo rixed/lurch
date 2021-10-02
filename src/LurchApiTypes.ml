@@ -22,8 +22,9 @@ struct
         { template : string }
     | Docker of
         { image : string }
-    | Shell of
-        { line : string ; timeout : float option }
+    | Exec of
+        { pathname : string ; args : string array ;
+          env : string array ; timeout : float option }
     | Approve of
         { subcommand : t ; timeout : float option ; comment : string ;
           autosuccess : bool }
@@ -42,7 +43,7 @@ struct
 
   let rec fold f u cmd =
     match cmd.operation with
-    | Nop | Chroot _ | Docker _ | Shell _ ->
+    | Nop | Chroot _ | Docker _ | Exec _ ->
         f u cmd
     | Isolate { subcommand }
     | Approve { subcommand }
@@ -68,12 +69,52 @@ struct
     | Isolate _ -> "isolate"
     | Chroot _ -> "chroot"
     | Docker _ -> "docker"
-    | Shell _ -> "shell"
+    | Exec _ -> "exec"
     | Approve _ -> "approve"
     | Sequence _ -> "sequence"
     | Retry _ -> "retry"
     | Try _ -> "try"
     | Pause _ -> "pause"
+
+  let rec string_of_operation =
+    let or_null conv = function
+      | None -> "null"
+      | Some v -> conv v in
+    let join conv lst =
+      List.fold_left (fun s x ->
+        if s = "" then conv x else s ^", "^ conv x
+      ) "" lst in
+    function
+    | Nop ->
+        "Nop"
+    | Isolate { builder ; subcommand } ->
+        "Isolate(builder:"^ to_string builder ^
+        ", subcommand:"^ to_string subcommand ^")"
+    | Chroot { template } ->
+        "Chroot(template:"^ template ^")"
+    | Docker { image } ->
+        "Docker(image:"^ image ^")"
+    | Exec { pathname ; args ; env ; timeout } ->
+        "Exec(pathname:"^ pathname ^", args:…, env:…,, timeout:"^
+        or_null string_of_float timeout ^")"
+    | Approve { subcommand ; timeout ; comment ; autosuccess } ->
+        "Approve(subcommand:"^ to_string subcommand ^", timeout:"^
+        or_null string_of_float timeout ^ "commend:"^ comment ^", autosuccess:"^
+        string_of_bool autosuccess ^")"
+    | Sequence { subcommands } ->
+        "Sequence("^ join to_string subcommands ^")"
+    | Retry { subcommand ; up_to } ->
+        "Retry(subcommand:"^ to_string subcommand ^", up_to:"^
+        string_of_int up_to ^")"
+    | Try { subcommand ; on_failure } ->
+        "Try(subcommand:"^ to_string subcommand ^", on_failure:"^
+        to_string on_failure ^")"
+    | Pause { duration ; subcommand } ->
+        "Pause(duration:"^ string_of_float duration ^", subcommand:"^
+        to_string subcommand ^")"
+
+  and to_string t =
+    "{id:"^ string_of_int t.id ^ " operation:"^ string_of_operation t.operation ^"}"
 end
 
 module Status =

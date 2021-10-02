@@ -54,7 +54,7 @@ let env_of_template = function
   | s ->
       invalid_arg ("Chroot.environment "^ s)
 
-let prepare_exec template isolation_id args =
+let prepare_exec template isolation_id pathname args env =
   let path = Db.ChrootPath.get isolation_id in
   let open Legacy.Unix in
   (* Save this before chrooting: *)
@@ -68,5 +68,5 @@ let prepare_exec template isolation_id args =
   log.debug "Switching to user %S" !user ;
   setgid pwd.pw_gid ;
   setuid pwd.pw_uid ;
-  let env = env_of_template template in
-  args, env
+  let env = Array.append (env_of_template template) env in
+  pathname, args, env

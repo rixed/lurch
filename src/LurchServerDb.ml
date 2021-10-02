@@ -106,7 +106,7 @@ struct
   let rec get id =
     let cnx = get_cnx () in
     let tables = [| "command_isolate" ; "command_chroot" ; "command_docker" ;
-                    "command_shell" ; "command_approve" ; "command_sequence" ;
+                    "command_exec" ; "command_approve" ; "command_sequence" ;
                     "command_retry" ; "command_try" ; "command_nop" ;
                     "command_pause" |] in
     let operation =
@@ -134,8 +134,11 @@ struct
               Api.Command.Docker
                 { image = getv 1 }
           | 3 ->
-              Api.Command.Shell
-                { line = getv 1 ; timeout = getn float_of_string 2 }
+              Api.Command.Exec
+                { pathname = getv 1 ;
+                  args = array (getv 2) ;
+                  env = array (getv 3) ;
+                  timeout = getn float_of_string 4 }
           | 4 ->
               Api.Command.Approve {
                 subcommand = get (int_of_string (getv 1)) ;
@@ -182,9 +185,12 @@ struct
       | Docker { image } ->
           "command_docker",
           [| "image", image |]
-      | Shell { line ; timeout } ->
-          "command_shell",
-          [| "line", line ; "timeout", or_null string_of_float timeout |]
+      | Exec { pathname ; args ; env ; timeout } ->
+          "command_exec",
+          [| "pathname", pathname ;
+             "args", sql_of_string_array args ;
+             "env", sql_of_string_array env ;
+             "timeout", or_null string_of_float timeout |]
       | Approve { subcommand ; timeout ; comment ; autosuccess } ->
           "command_approve",
           [| "subcommand", insert_or_update subcommand ;

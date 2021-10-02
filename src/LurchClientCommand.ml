@@ -7,49 +7,51 @@ module Api = LurchApiTypes
 module Lang = LurchCommandLanguage
 open LurchClientLib
 
-let edit_as_text ~editor ?dom_id command =
-  edit_text ?id:dom_id editor (Lang.string_of_command command)
+type op_mode = TopLevel | Isolation | Normal
 
-type form_level = TopLevel | Isolation | Normal
+let string_of_op_mode = function
+  | TopLevel -> "TopLevel"
+  | Isolation -> "Isolation"
+  | Normal -> "Normal"
 
 (* TODO: also pass a set of commands which help has already been printed to avoid
  * re-printing it unnecessarily *)
-let rec edit_as_form ?(build_isolation=Normal) ~editor ?dom_id command =
+let rec edit_as_form ?(op_mode=Normal) ?(editable=true) ?dom_id command =
   (* Editable items have an id prefix of [dom_id] and suffix of [suff]: *)
   let id suff = option_map (fun pref -> pref ^"/"^ suff) dom_id in
+  let refresh_msg ?add_input ?rem_input () =
+    `RefreshProgram (dom_id, add_input, rem_input) in
   (* Start with a combo to select the command: *)
   let command_labels =
-    match build_isolation with
+    match op_mode with
     | TopLevel ->
         [ "isolate" ]
     | Isolation ->
         [ "chroot" ; "docker" ]
     | Normal ->
-        [ "nop" ; "shell" ; "approve" ; "sequence" ; "retry" ; "try" ;
+        [ "nop" ; "exec" ; "approve" ; "sequence" ; "retry" ; "try" ;
           "pause" ] in
   let label_of_operation op =
     let l = Api.Command.name_of_operation op in
     if not (List.mem l command_labels) then
-      log ("not in command_labels: "^ l) ;
+      log ("not in command_labels: "^ l ^" while op_mode="^ string_of_op_mode op_mode) ;
     assert (List.mem l command_labels) ;
     l in
-  let a =
-    if editor then []
-    else [ disabled true ] in
   let op_selection =
     let id = id "op" in
     if List.length command_labels = 1 then
-      input_hidden ~a ?id (List.hd command_labels)
+      (* Do not offer to choose the command if there is only one possible: *)
+      input_hidden ?id (List.hd command_labels)
     else
       let selected = label_of_operation command.Api.Command.operation in
       let a =
         match dom_id with
-        | None -> a
+        | None -> []
         (* When an operation is changed, the form for this branch of the
          * command must be redrawn. *)
         | Some dom_id ->
-            onchange_index (fun _ -> `RefreshProgram dom_id) :: a in
-      select ~a ?id ~selected command_labels in
+            [ onchange_index (fun _ -> refresh_msg ()) ] in
+      select ~a ~editable ?id ~selected command_labels in
   div [
     op_selection ;
     (* Then the arguments of that specific operand: *)
@@ -61,29 +63,42 @@ let rec edit_as_form ?(build_isolation=Normal) ~editor ?dom_id command =
           p [ text "This is the required first command, and will build an isolated \
                     environment in which to run some more commands." ] ;
           h3 [ text "Isolation type" ] ;
-          edit_as_form ~build_isolation:Isolation ~editor ?dom_id:(id "builder") builder ;
+          edit_as_form ~op_mode:Isolation ~editable ?dom_id:(id "builder")
+            builder ;
           h3 [ text "Isolated command" ] ;
-          edit_as_form ~editor ?dom_id:(id "subcommand") subcommand ]
+          edit_as_form ~editable ?dom_id:(id "subcommand") subcommand ]
     | Chroot { template } ->
         div [
           p [ text "Chroot-based isolation will initially populate the chroot with \
                     busybox." ] ;
           (* TODO: other templates *)
-          input_text ?id:(id "template") ~label:"Template:" ~a
+          input_text ?id:(id "template") ~label:"Template:" ~editable
             ~placeholder:"template…" template ]
     | Docker { image } ->
         div [
           p [ text "Docker-based isolation will run in any specified image." ] ;
-          input_text ?id:(id "image") ~label:"Image:" ~a ~placeholder:"image…" image ]
-    | Shell { line ; timeout } ->
+          input_text ?id:(id "image") ~label:"Image:" ~editable
+            ~placeholder:"image…" image ]
+    | Exec { pathname ; args ; env ; timeout } ->
         div [
-          p [ text "Executes any shell command using /bin/sh with a minimal \
-                    environment (PATH, USER). The command will be forcibly \
-                    terminated, and that command considered a failure, if it's \
-                    not finished after the given timeout." ] ;
-          p [ input_text ?id:(id "line") ~label:"Command:" ~a ~placeholder:"shell…" line ] ;
-          p [ input_text ?id:(id "timeout") ~label:"Timeout:" ~units:"seconds" ~a
-                ~placeholder:"seconds…" (option_map_default "" string_of_float timeout) ] ]
+          p [ text "Executes any program with the given arguments and environment. \
+                    A minimal argument vector and environment are provided by \
+                    default. The program will be forcibly terminated, and that \
+                    command considered a failure, if it's not finished after \
+                    the given timeout expires." ] ;
+          p [ input_text ?id:(id "pathname") ~label:"Executable:" ~editable
+                pathname ] ;
+          input_text_multi ?id:(id "args") ~editable ~label:"Arguments:"
+            ~on_add:(refresh_msg ~add_input:(id "args", "") ())
+            ~on_rem:(fun i -> refresh_msg ~rem_input:(id "args", i) ())
+            (Array.to_list args) ;
+          input_text_multi ?id:(id "env") ~editable ~label:"Environment:"
+            ~on_add:(refresh_msg ~add_input:(id "env", "") ())
+            ~on_rem:(fun i -> refresh_msg ~rem_input:(id "env", i) ())
+            ~placeholder:"NAME=VALUE" (Array.to_list env) ;
+          p [ input_text ?id:(id "timeout") ~label:"Timeout:" ~units:"seconds"
+                ~editable ~placeholder:"seconds…"
+                (option_map_default "" string_of_float timeout) ] ]
     | Approve { subcommand ; timeout ; comment ; autosuccess } ->
         div [
           p [ text "Wait for a manual approval before running the given \
@@ -92,24 +107,24 @@ let rec edit_as_form ?(build_isolation=Normal) ~editor ?dom_id command =
                     program fails, depending on the auto-success flag." ];
           div [
             p [ text "Text for user:" ] ;
-            textarea ?id:(id "comment") ~a [ text comment ] ] ;
+            textarea ?id:(id "comment") ~editable [ text comment ] ] ;
           p [ input_text ?id:(id "timeout") ~label:"Timeout:" ~units:"seconds"
-                ~a ~placeholder:"seconds…"
+                ~editable ~placeholder:"seconds…"
                 (option_map_default "" string_of_float timeout) ] ;
-          p [ radios ?id:(id "autosuccess") ~label:"On timeout:" ~a
+          p [ radios ?id:(id "autosuccess") ~label:"On timeout:" ~editable
                 [ "proceed", "t" ; "fail", "f" ]
                 (Lang.sql_string_of_bool autosuccess) ] ;
-          edit_as_form ~editor ?dom_id:(id "subcommand") subcommand ]
+          edit_as_form ~editable ?dom_id:(id "subcommand") subcommand ]
     | Sequence { subcommands } ->
         let lis =
           List.mapi (fun i subcommand ->
             li [
-              edit_as_form ~editor ?dom_id:(id (string_of_int i)) subcommand ]
+              edit_as_form ~editable ?dom_id:(id (string_of_int i)) subcommand ]
           ) subcommands in
         let lis =
-          if editor then lis @ [
+          if editable then lis @ [
             li [
-              edit_as_form ~editor
+              edit_as_form ~editable
                 ?dom_id:(id (string_of_int (List.length subcommands)))
                 { operation = Nop ; id = 0 } ] ]
           else lis in
@@ -121,43 +136,53 @@ let rec edit_as_form ?(build_isolation=Normal) ~editor ?dom_id command =
           p [ text "Execute the given subcommand up to a given number of times \
                     until it succeeds." ] ;
           h3 [ text "Command" ] ;
-          edit_as_form ~editor ?dom_id:(id "subcommand") subcommand ;
-          input_text ?id:(id "up_to") ~label:"Up to:" ~units:"times" ~a
+          edit_as_form ~editable ?dom_id:(id "subcommand") subcommand ;
+          input_text ?id:(id "up_to") ~label:"Up to:" ~units:"times" ~editable
             ~placeholder:"number…" (string_of_int up_to) ]
     | Try { subcommand ; on_failure } ->
         div [
           p [ text "Execute the given subcommand. If it fails, also executes \
                     the fallback subcommand." ] ;
           h3 [ text "Command" ] ;
-          edit_as_form ~editor ?dom_id:(id "subcommand") subcommand ;
+          edit_as_form ~editable ?dom_id:(id "subcommand") subcommand ;
           h3 [ text "Fallback" ] ;
-          edit_as_form ~editor ?dom_id:(id "on_failure") on_failure ]
+          edit_as_form ~editable ?dom_id:(id "on_failure") on_failure ]
     | Pause { duration ; subcommand } ->
         div [
           p [ text "Pause for the given amount of time before starting the \
                     specified subcommand." ] ;
-          input_text ?id:(id "duration") ~label:"Duration:" ~units:"seconds" ~a
+          input_text ?id:(id "duration") ~label:"Duration:" ~units:"seconds" ~editable
             ~placeholder:"seconds…" (string_of_float duration) ;
           h3 [ text "Command" ] ;
-          edit_as_form ~editor ?dom_id:(id "subcommand") subcommand ]) ]
+          edit_as_form ~editable ?dom_id:(id "subcommand") subcommand ]) ]
 
-let edit ~editor ?dom_id command =
-  edit_as_form ~build_isolation:TopLevel ~editor ?dom_id command
+let edit ~editable ?dom_id command =
+  edit_as_form ~op_mode:TopLevel ~editable ?dom_id command
 
 (* The reverse of edit_as_form (fail with an exception)
  * When a value is missing a default is assumed. This is required when updating
  * the form when another operation is selected. Ideally, when a value is missing
  * it would be fetched from a cache of past values for that id: *)
-let rec command_of_form_exc document dom_id =
+let rec command_of_form_exc ?add_input ?rem_input document dom_id =
   let id suff = dom_id ^"/"^ suff in
   let opt_subcommand suff =
-    try command_of_form_exc document (id suff)
-    with _ -> Api.Command.{ operation = Nop ; id = 0 } in
+    try command_of_form_exc ?add_input ?rem_input document (id suff)
+    with e ->
+      log ("Failed to build a command from the form: "^ Printexc.to_string e) ;
+      Api.Command.{ operation = Nop ; id = 0 } in
   let value ?def suff =
     let id = id suff in
     match Js_browser.Document.get_element_by_id document id, def with
     | Some e, _ ->
-        (* If this is a div then we have a radio group: *)
+        (* merely return this element's value: *)
+        Js_browser.Element.value e
+    | None, None -> failwith ("No such element: "^ id)
+    | None, Some def -> def in
+  let value_radio ?def suff =
+    let id = id suff in
+    match Js_browser.Document.get_element_by_id document id, def with
+    | Some e, _ ->
+        (* Radio groups come within a div: *)
         if Js_browser.Element.node_name e = "DIV" then (
           (* return the value of the checked radio: *)
           try
@@ -169,12 +194,46 @@ let rec command_of_form_exc document dom_id =
             (match def with
             | Some v -> v
             | None -> failwith ("No checked value for: "^ id))
-        ) else (
-          (* merely return this element's value: *)
-          Js_browser.Element.value e
-        )
+        ) else
+          invalid_arg "value_radio"
     | None, None -> failwith ("No such element: "^ id)
     | None, Some def -> def in
+  (* Specialized to get an optional list of strings build with
+   * input_text_multi, optionally adding/removing an antry according to
+   * add_input/rem_input. Note than add_input is a pair of id+value and
+   * rem_input a pair of id+index: *)
+  let value_strings suff =
+    let id = id suff in
+    match Js_browser.Document.get_element_by_id document id with
+    | Some e ->
+        (* Multi-strings come within a div: *)
+        if Js_browser.Element.node_name e = "DIV" then (
+          (* return all values present below that, as an array of strings: *)
+          let inputs = Js_browser.Element.get_elements_by_tag_name e "input" in
+          let inputs =
+            array_filter (fun input ->
+              Js_browser.Element.has_attribute input "type" &&
+              Js_browser.Element.get_attribute input "type" = "text"
+            ) inputs in
+          let inputs = Array.map Js_browser.Element.value inputs in
+          let inputs =
+            match rem_input with
+            | Some (Some id_, idx) when id_ = id ->
+                array_filteri (fun i _ -> i <> idx) inputs
+            | _ ->
+                inputs in
+          let inputs =
+            match add_input with
+            | Some (Some id_, def) when id_ = id ->
+                Array.append inputs [| def |]
+            | _ ->
+                inputs in
+          inputs
+        ) else
+          invalid_arg "value_strings"
+    | None ->
+        (* Default to an empty array *)
+        [||] in
   let value_opt suff =
     match value ~def:"" suff with
     | "" -> None
@@ -196,19 +255,22 @@ let rec command_of_form_exc document dom_id =
     | "docker" ->
         let image = value ~def:"" "image" in
         Api.Command.Docker { image }
-    | "shell" ->
-        let line = value ~def:"" "line"
+    | "exec" ->
+        let pathname = value ~def:"" "pathname"
+        and args = value_strings "args"
+        and env = value_strings "env"
         and timeout = option_map float_of_string (value_opt "timeout") in
-        Api.Command.Shell { line ; timeout }
+        Api.Command.Exec { pathname ; args ; env ; timeout }
     | "approve" ->
         let subcommand = opt_subcommand "subcommand"
         and timeout = option_map float_of_string (value_opt "timeout")
         and comment = value ~def:"" "comment"
-        and autosuccess = Lang.sql_bool_of_string (value ~def:"t" "autosuccess") in
+        and autosuccess =
+          Lang.sql_bool_of_string (value_radio ~def:"t" "autosuccess") in
         Api.Command.Approve { subcommand ; timeout ; comment ; autosuccess }
     | "sequence" ->
-        let subcommand i =
-          command_of_form_exc document (id (string_of_int i)) in
+        let subcommand i = command_of_form_exc ?add_input ?rem_input
+                             document (id (string_of_int i)) in
         let rec loop lst i =
           match subcommand i with
           | exception _ -> List.rev lst
@@ -232,8 +294,8 @@ let rec command_of_form_exc document dom_id =
         invalid_arg "command_of_form_exc" in
   Api.Command.{ id = 0 ; operation }
 
-let command_of_form document dom_id =
-  try Some (command_of_form_exc document dom_id)
+let command_of_form ?add_input ?rem_input document dom_id =
+  try Some (command_of_form_exc ?add_input ?rem_input document dom_id)
   with e ->
     log (Printexc.to_string e) ;
     None
@@ -247,7 +309,7 @@ let rec view run =
   let view_subcommand subcmd =
     match find_subrun subcmd.Api.Command.id with
     | exception Not_found ->
-        edit ~editor:false subcmd
+        edit ~editable:false subcmd
     | subrun ->
         view subrun in
   div [
@@ -291,18 +353,20 @@ let rec view run =
                 [ text "Instance not started yet." ]
             | Some instance ->
                 [ text "Instance is " ; config_txt instance ; text "." ]) ]
-    | Shell { line ; timeout } ->
+    | Exec { pathname ; args ; env ; timeout } ->
+        let txt_of_strings a =
+          List.map config_txt (Array.to_list a) in
+        let args = txt_of_strings args
+        and env = txt_of_strings env in
         div [
-          p (
-            text "Execute shell command " ::
-            config_txt line ::
-            match timeout with
-            | None ->
-                [ text "." ]
-            | Some t ->
-                [ text " and time out after " ;
-                  config_txt (string_of_float t) ;
-                  text "." ]) ]
+          p ([ text "Execute program: " ; config_txt pathname ] @ args) ;
+          (if env = [] then no_elt else
+            p (text "With environment: " :: env)) ;
+          match timeout with
+          | None ->
+              no_elt
+          | Some t ->
+              p [ text "Time out after " ; config_txt (string_of_float t) ; text "." ] ]
     | Approve { subcommand ; comment } ->
         div [
           (match run.confirmation_msg with

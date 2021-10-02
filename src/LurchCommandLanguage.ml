@@ -115,6 +115,18 @@ let sexpr_of_string str =
   sublst
 
 let command_of_string str =
+  let or_null conv = function
+    | Sym "null" -> None
+    | s -> Some (conv s) in
+  let float_of_sym = function
+    | Sym s -> float_of_string s
+    | _ -> invalid_arg "float_of_sym" in
+  let string_of_str = function
+    | Str s -> s
+    | _ -> invalid_arg "string_of_str" in
+  let of_string_lst conv = function
+    | Lst l -> List.map conv l
+    | _ -> invalid_arg "of_string_lst" in
   let rec operation_of_sexpr = function
     | Lst [ Sym "nop" ] ->
         Nop
@@ -125,11 +137,11 @@ let command_of_string str =
         Chroot { template }
     | Lst [ Sym "docker" ; Str image ] ->
         Docker { image }
-    | Lst [ Sym "shell" ; Str line ] ->
-        Shell { line ; timeout = None }
-    | Lst [ Sym "shell" ; Str line ; Sym timeout ] ->
-        let timeout = Some (float_of_string timeout) in
-        Shell { line ; timeout }
+    | Lst [ Sym "exec" ; Str pathname ; args ; env ; timeout ] ->
+        let args = of_string_lst string_of_str args |> Array.of_list
+        and env = of_string_lst string_of_str env |> Array.of_list
+        and timeout = or_null float_of_sym timeout in
+        Exec { pathname ; args ; env ; timeout }
     | Lst [ Sym "approve" ; Sym timeout ; Sym comment ; Sym autosuccess ; s ] ->
         let timeout =
           if timeout = "" then None else Some (float_of_string timeout) in
@@ -155,6 +167,12 @@ let command_of_string str =
   | _ -> failwith "Cannot parse string into a single command"
 
 let string_of_command ?max_depth cmd =
+  let or_null conv = function
+    | None -> Sym "null"
+    | Some v -> conv v in
+  let sym_of_float f = Sym (string_of_float f) in
+  let lst_of_string conv l = Lst (List.map conv l) in
+  let to_str s = Str s in
   let rec sexpr_of_operation ?max_depth = function
     | Nop ->
         Lst [ Sym "nop" ]
@@ -166,10 +184,11 @@ let string_of_command ?max_depth cmd =
         Lst [ Sym "chroot" ; Str template ]
     | Docker { image } ->
         Lst [ Sym "docker" ; Str image ]
-    | Shell { line ; timeout = None } ->
-        Lst [ Sym "shell" ; Str line ]
-    | Shell { line ; timeout = Some t } ->
-        Lst [ Sym "shell" ; Str line ; Sym (string_of_float t) ]
+    | Exec { pathname ; args ; env ; timeout } ->
+        Lst [ Sym "exec" ; Str pathname ;
+              lst_of_string to_str (Array.to_list args) ;
+              lst_of_string to_str (Array.to_list env) ;
+              or_null sym_of_float timeout ]
     | Approve { subcommand ; timeout ; comment ; autosuccess } ->
         Lst [ Sym "approve" ;
               Sym (match timeout with None -> ""
@@ -211,16 +230,16 @@ let string_of_command ?max_depth cmd =
 *)
 
 (*$= string_of_sexpr & ~printer:identity
-  "(sequence (pause 10) (shell \"make\"))" \
+  "(sequence (pause 10) (exec \"make\" null null null))" \
     (linearize \
       (string_of_sexpr (Lst [ Sym "sequence" ; \
         Lst [ Sym "pause" ; Sym "10" ] ; \
-        Lst [ Sym "shell" ; Str "make" ] ])))
+        Lst [ Sym "exec" ; Str "make" ; Sym "null" ; Sym "null" ; Sym "null" ] ])))
 *)
 
 (*$= string_of_command & ~printer:identity
-  "(sequence (pause 4) (shell \"make\"))" \
+  "(sequence (pause 4) (exec \"make\" (\"make\") null 0))" \
     (linearize \
       (string_of_command (command_of_string \
-        "(sequence (pause 4) (shell \"make\"))")))
+        "(sequence (pause 4) (exec \"make\" (\"make\") null 0))")))
 *)

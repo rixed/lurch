@@ -29,11 +29,14 @@ let create isolation_id image =
          shell_quote image ^" 7200") in
   Db.DockerInstance.insert isolation_id instance docker_id
 
-let prepare_exec _image isolation_id args =
+let prepare_exec _image isolation_id pathname args env =
   let instance = Db.DockerInstance.get isolation_id in
-  let args = Array.append [| !docker ; "exec" ; instance |] args in
-  let env = [||] in
-  args, env
+  let in_env =
+    Array.init (Array.length env * 2) (fun i ->
+      if i mod 2 = 0 then "-e" else env.(i/2)) in
+  let (++) = Array.append in
+  let args = [| !docker ; "exec" |] ++ in_env ++ [| instance |] ++ args in
+  pathname, args, [||]
 
 let read_stats docker_id =
   let cgroup = "docker/" ^ docker_id in

@@ -40,6 +40,17 @@ let array_find f a =
     loop (i + 1) in
   loop 0
 
+let array_filteri f a =
+  let _, items =
+    Array.fold_left (fun (i, items) v ->
+      i + 1,
+      if f i v then v :: items else items
+    ) (0, []) a in
+  List.rev items |> Array.of_list
+
+let array_filter f a =
+  array_filteri (fun _ x -> f x) a
+
 let date_of_ts ts =
   let date = Js.(new%js date_fromTimeValue (1000. *. ts)) in
   Js.to_string date##toISOString
@@ -85,6 +96,10 @@ let tr ?key ?a l = elt "tr" ?key ?a l
 
 let td ?key ?a l = elt "td" ?key ?a l
 
+let a_ ?key ?(a=[]) href label =
+  let a = attr "href" href :: a in
+  elt "a" ?key ~a [ text label ]
+
 let colspan = int_attr "colspan"
 
 let rowspan = int_attr "rowspan"
@@ -97,12 +112,14 @@ let disabled b = attr "disabled" (if b then "true" else "false")
 
 let tech_text str = txt_span ~a:[class_ "tech"] str
 
-let textarea ?id ?key ?(a=[]) l =
+let textarea ?id ?key ?(a=[]) ?(editable=true) l =
   let a = option_map_default a (fun id -> attr "id" id :: a) id in
+  let a = if editable then a else (disabled true :: a) in
   elt "textarea" ?key ~a l
 
-let select ?id ?key ?(a=[]) ?selected options =
+let select ?id ?key ?(a=[]) ?(editable=true) ?selected options =
   let a = option_map_default a (fun id -> attr "id" id :: a) id in
+  let a = if editable then a else (disabled true :: a) in
   elt "select" ?key ~a (
     List.map (fun opt ->
       let a = if selected = Some opt then [ attr "selected" "yes" ] else [] in
@@ -125,8 +142,9 @@ let simple_table_header l =
 let button ?key ?(a=[]) label msg =
   input ?key ~a:(type_button :: value label :: onclick (fun _ -> msg) :: a) []
 
-let input_text ?id ?key ?(a=[]) ?placeholder ?label ?units value =
+let input_text ?id ?key ?(a=[]) ?(editable=true) ?placeholder ?label ?units value =
   let a = option_map_default a (fun id -> attr "id" id :: a) id in
+  let a = if editable then a else (disabled true :: a) in
   let a = type_ "text" ::
           (* attribute not property for value or the input won't be editable! *)
           attr "value" value ::
@@ -150,6 +168,29 @@ let input_text ?id ?key ?(a=[]) ?placeholder ?label ?units value =
         text label ;
         input ?key ~a [] ;
         text units ]
+
+(* Offer to edit a list of strings.
+ * [id], [key] and [a] are that of a grouping div, whereas input ids will have an
+ * index appended. [placeholder] apply to individual inputs. *)
+let input_text_multi ?id ?key ?(a=[]) ?(editable=true) ?label ?on_add ?on_rem
+                     ?placeholder values =
+  let a = option_map_default a (fun id -> attr "id" id :: a) id in
+  let lines =
+    List.mapi (fun i value ->
+      let sub_id = option_map (fun pref -> pref ^"/"^ string_of_int i) id in
+      let inp = input_text ?id:sub_id ~editable ?placeholder value in
+      match editable, on_rem with
+      | true, Some msg -> p [ inp ; button "rem" (msg i) ]
+      | _ -> inp
+    ) values in
+  let lines =
+    lines @
+      match editable, on_add with
+      | true, Some msg -> [ p [ button "add" msg ] ]
+      | _ -> [] in
+  match label with
+  | None -> div ?key ~a lines
+  | Some label -> div ?key ~a (p [ text label ] :: lines)
 
 let input_hidden ?id ?key ?(a=[]) value =
   let a = option_map_default a (fun id -> attr "id" id :: a) id in
@@ -195,12 +236,12 @@ let get_group_name () =
   incr group_name_seq ;
   n
 
-let rec radios ?id ?key ?(a=[]) ?label options def =
+let rec radios ?id ?key ?(a=[]) ?label ?(editable=true) options def =
   match label with
   | Some label ->
       p ?key [
         text label ; (* Not to be confused with the option labels *)
-        radios ?id ~a options def ]
+        radios ?id ~a ~editable options def ]
   | None ->
       let a = option_map_default a (fun id -> attr "id" id :: a) id in
       let group_name = get_group_name () in
@@ -208,6 +249,7 @@ let rec radios ?id ?key ?(a=[]) ?label options def =
         (List.map (fun (n, v) ->
           let a = [type_ "radio"; name_ group_name; value v] in
           let a = if v = def then checked_ :: a else a in
+          let a = if editable then a else (disabled true :: a) in
           elt "label" [ input ~a [] ; text n ]
         ) options)
 
@@ -223,23 +265,6 @@ let togle_list s lst =
     else loop (x::prev) rest
   in
   loop [] lst
-
-(* We need some widgets that are either editors or read-only version, toggling
- * with a [editor] boolean. *)
-
-let edit_string ?id ?key ?(a=[]) editor str =
-  let a = option_map_default a (fun id -> attr "id" id :: a) id in
-  if editor then
-    input_text ?key ~a:(autofocus::a) ~placeholder:"enter a unique name..." str
-  else
-    p ?key ~a:(class_ "editable" :: a) [ text str ]
-
-let edit_text ?id ?key ?(a=[]) editor str =
-  let a = option_map_default a (fun id -> attr "id" id :: a) id in
-  if editor then
-    textarea ?key ~a [ text str ]
-  else
-    pre ?key ~a:(class_ "editable" :: a) [ text str ]
 
 let is_digit c =
   c >= '0' && c <= '9'

@@ -15,8 +15,7 @@ let header _st =
       text " " ;
       txt_span ~a:[ class_ "version" ] Version.release_tag ;
       text " - " ;
-      elt "a" ~a:[ attr "href" "https://github.com/rixed/lurch" ]
-        [ text "source" ] ]
+      a_ "https://github.com/rixed/lurch" "source" ]
 
 let menu _st =
   ul ~a:[ class_ "menu" ] [
@@ -129,7 +128,7 @@ let list_programs_and_run programs =
                     td ~a:[ class_ "click" ; goto_run ; bgcolor ]
                       [ text txt ] ]))))
 
-let program_editor program editor last_runs =
+let program_editor program ~editable last_runs =
   let saved_name =
     match program.Program.saved with
     | None -> ""
@@ -142,38 +141,36 @@ let program_editor program editor last_runs =
     table [
       tr [
         td [ text "Name" ] ;
-        td [ edit_string ~id:"program_name" editor program.edited.name ] ] ;
+        td [
+          input_text ~id:"program_name" ~editable ~a:[autofocus]
+            ~placeholder:"enter a unique name..." program.edited.name ] ] ;
       tr [
         td [ text "Command" ] ;
         td [
-          Command.edit ~editor ~dom_id:"program_command" program.edited.command ] ] ;
+          Command.edit ~editable ~dom_id:"program_command" program.edited.command ] ] ;
       tr [
         td ~a:[attr "collspan" "2"] [
-          div [
-            if editor || saved_name = "" then
-              no_elt
+          div (
+            (if editable || saved_name = "" then
+              []
             else
-              button "Run" (`StartProgram saved_name) ;
-            horiz_spacer ;
-            if editor then
+              [ button "Run" (`StartProgram saved_name) ]) @
+            [ horiz_spacer ] @
+            (if editable then
               let prev_name =
                 match program.saved with Some saved -> saved.Api.Program.name
-                                 | None -> "" in
+                                 | None -> "" in [
+              button "Cancel"
+                (`SetLocation (State.ShowProgram { program ; editable = false ;
+                                                   last_runs })) ;
               button "Save" (`SaveProgram prev_name)
-            else
-              button "Edit" (`SetDialog (State.ShowProgram
-                { program ; editor = true ; last_runs })) ;
-            button "Cancel" (
-              if editor then `SetDialog (State.ShowProgram
-                { program ; editor = false ; last_runs })
-              else
-                `SetDialog State.Absent
-            ) ;
-            if saved_name <> "" then
+            ] else [
+              button "Edit" (`SetLocation (State.ShowProgram
+                { program ; editable = true ; last_runs })) ]) @
+            (if saved_name <> "" then [
               button "Delete" (
-                `SetDialog (State.ConfirmDeleteProgram { program }))
-            else
-              no_elt ] ] ] ] ;
+                `SetLocation (State.ConfirmDeleteProgram { program }))
+            ] else [])) ] ] ] ;
     if saved_name = "" then
       no_elt
     else div [
@@ -205,11 +202,8 @@ let program_confirm_deletion program =
   (* Called only for saved programs: *)
   let program_name = (option_get program.Program.saved).Api.Program.name in
   div [
-    p [
-      text ("Are you sure you want to delete program "^ program_name) ] ;
-    p [
-      button "Cancel" (`SetDialog State.Absent) ;
-      button "Confirm" (`DeleteProgram program_name) ] ]
+    p [ text ("Are you sure you want to delete program "^ program_name ^"?") ] ;
+    p [ button "Confirm" (`DeleteProgram program_name) ] ]
 
 let info label def =
   div ~a:[ class_ "info-pair" ] [

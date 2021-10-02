@@ -48,9 +48,12 @@ create table command_docker (
   foreign key (command) references command (id) on delete cascade
 );
 
-create table command_shell (
+create table command_exec (
   command int,
-  line text not null,
+  pathname text not null,
+  -- !!!WARNING WARNING WARNING!!! postgres arrays start at 1 !!!
+  args text[] not null default '{}', -- Editor should provide sane default
+  env text[] not null default '{}', -- Editor should provide sane default
   timeout float,
   foreign key (command) references command (id) on delete cascade
 );
@@ -272,7 +275,7 @@ create view list_waiting_terminals as
     c.command
   from run r
   join (
-    select command from command_shell union
+    select command from command_exec union
     select command from command_nop
   ) c on r.command = c.command
   where

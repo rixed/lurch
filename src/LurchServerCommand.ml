@@ -23,7 +23,7 @@ let lurch = ref (Sys.argv.(0))
 
 (* Monitor the given command, write its stats, output logs and exit time into
  * the database and then quit. *)
-let do_monitor_run isolation_run cgroup pid stdout_r stderr_r cmd_timeout run_id =
+let do_monitor_run isolation_run cgroup pid stdout_r stderr_r timeout run_id =
   let open Legacy.Unix in
   (* We record in the DB the fd number the monitored process wrote into, not the
    * one we read from: *)
@@ -183,25 +183,27 @@ let rec lookup_isolation run =
     | _ ->
         lookup_isolation parent
 
+let default_env =
+  (* Take PATH and USER from current environment: *)
+  [| "PATH="^ (try Sys.getenv "PATH"
+               with Not_found -> "/usr/bin:/bin") ;
+     "USER="^ !user |]
+
 (* Called just before to execve: *)
-let isolate isolation_run args () =
+let isolate isolation_run pathname args env () =
   match isolation_run with
   | None ->
-      args,
-      (* Take PATH from current environment: *)
-      [| "PATH="^ (try Sys.getenv "PATH"
-                   with Not_found -> "/usr/bin:/bin") ;
-         "USER="^ !user |]
+      pathname, args, Array.append default_env env
   | Some Api.Run.{
       command = { operation = Chroot { template ; _ } ; _ } ; id } ->
-      Chroot.prepare_exec template id args
+      Chroot.prepare_exec template id pathname args env
   | Some Api.Run.{
       command = { operation = Docker { image ; _ } ; _ } ; id } ->
-      Docker.prepare_exec image id args
+      Docker.prepare_exec image id pathname args env
   | _ -> assert false
 
-let start_process run cmd_timeout args =
-  assert (Array.length args > 0) ;
+let start_process pathname ~args ?(env=[||]) ?timeout run =
+  (* [env] will be set according to the isolation layer *)
   (* Isolation: most of the time, commands must run within a container of
    * some sort (chroot, docker instance...
    * First, lookup the chain of parents to find the isolation mechanism
@@ -228,12 +230,12 @@ let start_process run cmd_timeout args =
       let stdout_r, stdout_w = pipe ~cloexec:false () in
       let stderr_r, stderr_w = pipe ~cloexec:false () in
       let cgroup, pid =
-        CGroup.exec (isolate isolation_run args) stdin stdout_w stderr_w in
+        CGroup.exec (isolate isolation_run pathname args env) stdin stdout_w stderr_w in
       close stdout_w ;
       close stderr_w ;
       log.info "Started process has pid %d" pid ;
       Db.Run.start run.id ~cgroup ~pid ;
-      do_monitor_run isolation_run cgroup pid stdout_r stderr_r cmd_timeout run.id
+      do_monitor_run isolation_run cgroup pid stdout_r stderr_r timeout run.id
     with e ->
       let line = "Cannot start subprocess: "^ Printexc.to_string e in
       log.error "%s" line ;
@@ -254,17 +256,16 @@ let start_process run cmd_timeout args =
 (* The timeout to use for every "internal" commands: *)
 let command_timeout = ref (Some 600.)
 
-(* Terminals are commands that must actually be executed externally, like shell
- * or git commands. *)
+(* Terminals are commands that must actually be executed externally, like exec
+ * commands. *)
 let start_terminal run =
   match run.Api.Run.command.operation with
   | Nop ->
       Db.LogLine.insert run.id 1 "No-operation" ;
       Db.Run.start run.id ;
       Db.Run.stop run.id 0 ;
-  | Shell { line ; timeout } ->
-      let args = [| "/bin/sh"; "-c"; line |] in
-      start_process run timeout args
+  | Exec { pathname ; args ; env ; timeout } ->
+      start_process pathname ~args ~env ?timeout run
   | Chroot _ | Docker _ ->
       (* Run the creation of the isolation layer as any other
        * command, so it can itself be isolated.
@@ -278,7 +279,7 @@ let start_terminal run =
            shell_quote !lurch ^" _exec "^
            (if !is_debug then "--debug " else "") ^
            string_of_int run.id |] in
-      start_process run !command_timeout args
+      start_process "/bin/sh" ~args ~timeout:!command_timeout run
   (* Those are not terminals: *)
   | Isolate _
   | Approve _

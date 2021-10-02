@@ -15,18 +15,14 @@ module Views = LurchClientViews
 let view_of_location =
   let open State in
   function
-  | Absent ->
-      assert false (* Not for main view *)
   | ShowError e ->
-      div [
-        p ~a:[class_ "error"] [ text e ] ;
-        button "Back" (`SetDialog Absent) ]
+      div [ p ~a:[class_ "error"] [ text e ] ]
   | ListPastRuns lst ->
       Views.list_past_runs lst
   | ListProgramsAndRun lst ->
       Views.list_programs_and_run lst
-  | ShowProgram { program ; editor ; last_runs } ->
-      Views.program_editor program editor last_runs
+  | ShowProgram { program ; editable ; last_runs } ->
+      Views.program_editor program ~editable last_runs
   | ConfirmDeleteProgram { program } ->
       Views.program_confirm_deletion program
   | ShowRun { run ; more_logs_expected } ->
@@ -39,11 +35,7 @@ let view st =
     Views.header st ;
     Views.menu st ;
     Views.spinner st ;
-    match st.State.dialog with
-    | State.Absent ->
-        view_of_location st.location
-    | dialog ->
-        view_of_location dialog ]
+    view_of_location st.location ]
 
 (*
  * Update
@@ -91,8 +83,8 @@ let update =
   fun st -> function
   | `Test ->
       return State.{ st with location = Test }
-  | `SetDialog dialog ->
-      return State.{ st with dialog ; refresh_msg = None }
+  | `SetLocation location ->
+      return State.{ st with location ; refresh_msg = None }
   | `MaybeRefresh refresh_msg ->
       let c =
         if st.refresh_msg = Some refresh_msg then
@@ -113,9 +105,8 @@ let update =
       return ~c:[ajax]
         State.{ st with waiting = true ; refresh_msg = Some `GetPastProgramRuns }
   | `GotPastProgramRuns (Error e) ->
-      return State.{ st with dialog = ShowError e ; waiting = false }
+      return State.{ st with location = ShowError e ; waiting = false }
   | `GotPastProgramRuns (Ok res) ->
-      log "Got PastProgramRuns!" ;
       log_js (Js_browser.JSON.parse res) ;
       let res = Api.ListPastRuns.array_of_json_string res in
       let res =
@@ -124,8 +115,7 @@ let update =
             Array.append runs res
         | _ ->
             res in
-      return State.{ st with location = ListPastRuns res ;
-                             dialog = Absent ; waiting = false }
+      return State.{ st with location = ListPastRuns res ; waiting = false }
   | `GetProgramsAndRun ->
       let ajax =
         Http_get { url = lurch_url "list_programs" [] ;
@@ -133,17 +123,16 @@ let update =
       return ~c:[ajax]
         State.{ st with waiting = true ; refresh_msg = Some `GetProgramsAndRun }
   | `GotProgramsAndRun (Error e) ->
-      return State.{ st with dialog = ShowError e ; waiting = false }
+      return State.{ st with location = ShowError e ; waiting = false }
   | `GotProgramsAndRun (Ok res) ->
-      log "Got ProgramsAndRun!" ;
       log_js (Js_browser.JSON.parse res) ;
       let res = Api.ListPrograms.array_of_json_string res in
       return State.{ st with location = ListProgramsAndRun res ;
-                             dialog = Absent ; waiting = false }
+                             waiting = false }
   | `CreateProgram ->
       return State.{ st with
-        dialog = ShowProgram { program = Program.init ;
-                               editor = true ; last_runs = [||] } ;
+        location = ShowProgram { program = Program.init ;
+                                 editable = true ; last_runs = [||] } ;
         refresh_msg = None }
   | `GetProgram name ->
       let ajax =
@@ -152,21 +141,20 @@ let update =
       return ~c:[ajax]
         State.{ st with waiting = true ; refresh_msg = Some (`GetProgram name) }
   | `GotProgram (Error e) ->
-      return State.{ st with dialog = ShowError e ; waiting = false }
+      return State.{ st with location = ShowError e ; waiting = false }
   | `GotProgram (Ok res) ->
-      log "Got Program!" ;
       log_js (Js_browser.JSON.parse res) ;
       let res = Api.Program.of_json_string res in
       let program = Program.of_api res in
       return ~c:[Vdom.Cmd.echo (`GetLastRuns res.name) ]
-        State.{ st with
-          dialog = ShowProgram { program ; editor = false ;
-                                 last_runs = [||] } ;
+        State.{
+          location = ShowProgram { program ; editable = false ;
+                                   last_runs = [||] } ;
           waiting = false ;
           refresh_msg = Some (`GetProgram res.name) }
   | `GetLastRuns name ->
       let params =
-        match oldest_top_run st.State.dialog with
+        match oldest_top_run st.State.location with
         | None -> []
         | Some oldest -> [ "oldest_top_run", string_of_int oldest ] in
       let ajax =
@@ -176,41 +164,41 @@ let update =
       return ~c:[ajax]
         State.{ st with waiting = true ; refresh_msg = Some (`GetLastRuns name) }
   | `GotLastRuns (Error e, _) ->
-      return State.{ st with dialog = ShowError e ; waiting = false }
+      return State.{ st with location = ShowError e ; waiting = false }
   | `GotLastRuns (Ok res, name) ->
-      log "Got last runs!" ;
       log_js (Js_browser.JSON.parse res) ;
       let res = Api.ListPastRuns.array_of_json_string res in
-      (match st.State.dialog with
-      | ShowProgram { program ; editor ; last_runs }
+      (match st.State.location with
+      | ShowProgram { program ; editable ; last_runs }
         when program.saved <> None &&
              (option_get program.saved).name = name ->
           return State.{ st with
-            dialog = ShowProgram { program ; editor ;
-                                   last_runs = Array.append last_runs res } ;
+            location = ShowProgram { program ; editable ;
+                                     last_runs = Array.append last_runs res } ;
             waiting = false }
       | _ ->
           return State.{ st with waiting = false } (* used clicked away already *))
-  | `RefreshProgram dom_id ->
+  | `RefreshProgram (dom_id, add_input, rem_input) ->
       (match Js_browser.Document.get_element_by_id document "program_name",
-             LurchClientCommand.command_of_form document "program_command" with
+             LurchClientCommand.command_of_form ?add_input ?rem_input
+              document "program_command" with
       | Some name, Some command ->
           let name = Element.value name in
-          (match st.State.dialog with
-          | ShowProgram { program ; editor ; last_runs } ->
+          (match st.State.location with
+          | ShowProgram { program ; editable ; last_runs } ->
               let program =
                 Program.{ edited = Api.Program.{ name ; created = 0. ; command } ;
                           saved = program.saved } in
-              let dialog = State.ShowProgram { program ; editor ; last_runs } in
-              return State.{ st with dialog ; waiting = false }
+              let location = State.ShowProgram { program ; editable ; last_runs } in
+              return State.{ st with location ; waiting = false }
           | _ ->
-              return State.{ st with
-                dialog = ShowError "Received a RefresProgram message while \
-                                    not in ShowProgram view!?" ;
+              return State.{
+                location = ShowError "Received a RefresProgram message while \
+                                      not in ShowProgram view!?" ;
                 waiting = false ; refresh_msg = None })
       | _ ->
-          return State.{ st with
-            dialog = ShowError "Cannot find program values while refreshing!?" ;
+          return State.{
+            location = ShowError "Cannot find program values while refreshing!?" ;
             waiting = false ; refresh_msg = None })
   | `SaveProgram prev_name -> (* prev_name is "" for new programs *)
       (match Js_browser.Document.get_element_by_id document "program_name",
@@ -227,8 +215,8 @@ let update =
               callback = fun r -> `GotProgram r } in
           return ~c:[ajax] State.{ st with waiting = true ; refresh_msg = None }
       | _ ->
-          return State.{ st with
-            dialog = ShowError "Cannot find program values" ;
+          return State.{
+            location = ShowError "Cannot find program values" ;
             waiting = false ; refresh_msg = None })
   | `DeleteProgram name ->
       let ajax =
@@ -236,23 +224,22 @@ let update =
                    callback = fun r -> `DeletedProgram r } in
       return ~c:[ajax] State.{ st with waiting = true ; refresh_msg = None }
   | `DeletedProgram (Error e) ->
-      return State.{ st with dialog = ShowError e ; waiting = false }
+      return State.{ st with location = ShowError e ; waiting = false }
   | `DeletedProgram (Ok _) ->
       return ~c:[Vdom.Cmd.echo `GetPastProgramRuns]
-        State.{ st with dialog = Absent ; waiting = false }
+        State.{ st with waiting = true }
   | `StartProgram name ->
       let ajax =
         Http_get { url = lurch_url "start_program" [ "program", name ] ;
                    callback = fun r -> `StartedProgram r } in
       return ~c:[ajax] State.{ st with waiting = true ; refresh_msg = None }
   | `StartedProgram (Error e) ->
-      return State.{ st with dialog = ShowError e ; waiting = false }
+      return State.{ st with location = ShowError e ; waiting = false }
   | `StartedProgram (Ok res) ->
-      log "Got run id!" ;
       log_js (Js_browser.JSON.parse res) ;
       let run = Api.Run.of_json_string res in
       return ~c:[Vdom.Cmd.echo (`GetMoreLogs run)]
-        State.{ st with dialog = ShowRun { run ; more_logs_expected = true } ;
+        State.{ st with location = ShowRun { run ; more_logs_expected = true } ;
                         waiting = false }
   | `GetRun (run_id, logs) ->
       let ajax =
@@ -261,13 +248,12 @@ let update =
       return ~c:[ajax]
         State.{ st with waiting = true ; refresh_msg = None }
   | `GotRun (Error e, _) ->
-      return State.{ st with dialog = ShowError e ; waiting = false }
+      return State.{ st with location = ShowError e ; waiting = false }
   | `GotRun (Ok res, logs) ->
-      log "Got run!" ;
       log_js (Js_browser.JSON.parse res) ;
       let run = { (Api.Run.of_json_string res) with logs } in
       return ~c:[Vdom.Cmd.echo (`GetMoreLogs run)]
-        State.{ st with dialog = ShowRun { run ; more_logs_expected = true } }
+        State.{ st with location = ShowRun { run ; more_logs_expected = true } }
   | `CancelRun run_id ->
       let ajax =
         Http_get { url = lurch_url "cancel_run" [ "id", string_of_int run_id ] ;
@@ -276,7 +262,7 @@ let update =
   | `CancelledRun (Ok _) ->
       (* If we are displaying runs then refresh otherwise keep calm: *)
       let c =
-        match st.State.dialog with
+        match st.State.location with
         | ShowRun { run } ->
             (* Even if we are not displaying the very run that has been
              * cancelled it could still be part of the displayed run, so
@@ -288,7 +274,7 @@ let update =
             [] in
       return ~c st
   | `CancelledRun (Error e) ->
-      return State.{ st with dialog = ShowError e ; waiting = false }
+      return State.{ st with location = ShowError e ; waiting = false }
   | `GetMoreLogs run ->
       let offset = Array.length run.Api.Run.logs
       and limit = logs_limit in
@@ -301,12 +287,12 @@ let update =
                    callback = fun r -> `GotMoreLogs (r, run) } in
       return ~c:[ajax] State.{ st with waiting = true }
   | `GotMoreLogs (Error e, _) ->
-      return State.{ st with dialog = ShowError e ; waiting = false }
+      return State.{ st with location = ShowError e ; waiting = false }
   | `GotMoreLogs (Ok res, top_run) ->
       let res = Api.LogLine.array_of_json_string res in
       let len = Array.length res in
       log ("Got "^ string_of_int len ^" log lines!") ;
-      (match st.State.dialog with
+      (match st.State.location with
       | ShowRun { run } when run.Api.Run.id = top_run.Api.Run.id ->
           let run = { run with logs = Array.append run.logs res } in
           let refresh_msg = `GetRun (run.id, run.logs) in
@@ -321,13 +307,13 @@ let update =
               [], false
           in
           return ~c
-            State.{ st with dialog = ShowRun { run ; more_logs_expected } ;
-                      waiting = false ;
-                      refresh_msg = Some refresh_msg }
+            State.{ location = ShowRun { run ; more_logs_expected } ;
+                     waiting = false ;
+                     refresh_msg = Some refresh_msg }
       | ShowRun { run ; _ } ->
           (* FIXME: why is it an error? Why not simply get this run's logs? *)
           let err_msg = string_of_int run.id ^" <> "^ string_of_int top_run.id in
-          return State.{ st with dialog = ShowError err_msg ; waiting = false }
+          return State.{ st with location = ShowError err_msg ; waiting = false }
       | _ ->
           return st)
   | `ConfirmCommand (run_id, msg_dom_id, top_run) ->
@@ -343,12 +329,11 @@ let update =
           return ~c:[ajax] State.{ st with waiting = true ; refresh_msg = None }
       | _ ->
           return State.{ st with
-            dialog = ShowError "Cannot find confirmation message value" ;
+            location = ShowError "Cannot find confirmation message value" ;
             waiting = false })
   | `ConfirmedCommand (Error e, _) ->
-      return State.{ st with dialog = ShowError e ; waiting = false }
+      return State.{ st with location = ShowError e ; waiting = false }
   | `ConfirmedCommand (Ok res, top_run) ->
-      log "Confirmed!" ;
       (* Reload the run to see the confirmation: *)
       return ~c:[Vdom.Cmd.echo (`GetRun (top_run, [||]))]
         State.{ st with waiting = false }
@@ -388,7 +373,7 @@ let run () =
     | None -> assert false in
   let init =
     return (*~c:[Cmd.echo (Initialize (fun () -> return `GetPastProgramRuns))]*)
-      State.{ location = ListPastRuns [||] ; dialog = Absent ;
+      State.{ location = ListPastRuns [||] ;
               waiting = false ; refresh_msg = Some `GetPastProgramRuns } in
   let a = app ~init ~view ~update () in
   let a = Vdom_blit.run a in
