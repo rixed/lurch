@@ -230,16 +230,16 @@ let string_of_command ?max_depth cmd =
 *)
 
 (*$= string_of_sexpr & ~printer:identity
-  "(sequence (pause 10) (exec \"make\" null null null))" \
+  "(sequence (pause 10) (exec \"make\" () () null))" \
     (linearize \
       (string_of_sexpr (Lst [ Sym "sequence" ; \
         Lst [ Sym "pause" ; Sym "10" ] ; \
-        Lst [ Sym "exec" ; Str "make" ; Sym "null" ; Sym "null" ; Sym "null" ] ])))
+        Lst [ Sym "exec" ; Str "make" ; Lst [] ; Lst [] ; Sym "null" ] ])))
 *)
 
 (*$= string_of_command & ~printer:identity
-  "(sequence (pause 4) (exec \"make\" (\"make\") null 0))" \
+  "(pause 4. (exec \"make\" (\"make\") () 0.))" \
     (linearize \
       (string_of_command (command_of_string \
-        "(sequence (pause 4) (exec \"make\" (\"make\") null 0))")))
+        "(pause 4 (exec \"make\" (\"make\") () 0))")))
 *)
