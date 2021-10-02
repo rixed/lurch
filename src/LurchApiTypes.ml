@@ -123,17 +123,20 @@ struct
     | Interrupted of int (* signal number *)
     | CouldNotStart
     (* Runs cancelled when the stepper start because they were too old. Not
-     * to be confused with timed out runs, which are Interrupted: *)
+     * to be confused with timed out runs, which are TimedOut: *)
     | Expired
     | Cancelled
+    | TimedOut
 
-  (* THose are specific to lurch: *)
+  (* Those are specific to lurch: *)
   let expired = -129
   let cancelled = -130
+  let timed_out = -131
 
   let of_code code =
     if code = expired then Expired else
     if code = cancelled then Cancelled else
+    if code = timed_out then TimedOut else
     if code < 0 && code >= -128 then Interrupted (-code) else
     if code = 127 then CouldNotStart else
     if code = 0 then Completed else
@@ -147,12 +150,13 @@ struct
     | CouldNotStart -> "Could not start"
     | Expired -> "Expired"
     | Cancelled -> "Cancelled"
+    | TimedOut -> "Timed out"
 
   type err_level = Ok | Warn | Err
 
   let err_level = function
     | Completed -> Ok
-    | Failed _ | CouldNotStart | Expired -> Err
+    | Failed _ | CouldNotStart | Expired | TimedOut -> Err
     | Interrupted _ | Cancelled -> Warn
 end
 

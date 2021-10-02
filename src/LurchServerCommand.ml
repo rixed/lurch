@@ -371,12 +371,12 @@ let step_approvals () =
           | Approve { subcommand ; timeout } ->
               subcommand, timeout
           | _ -> assert false in
-        let unblock exit_code =
-          let proceed = exit_code >= 0 || approve.autosuccess in
+        let unblock timed_out =
+          let proceed = not timed_out || approve.autosuccess in
           (* Start the subcommand before stopping the wait so this is less of
            * a problem to die here: *)
           let line = Printf.sprintf "%s. %s subcommand"
-            (if exit_code >= 0 then "Confirmed" else "Timing out")
+            (if timed_out then "Timing out" else "Confirmed")
             (if proceed then "Proceeding to" else "Cancelling") in
           Db.LogLine.insert approve.run.id 1 line ;
           if proceed then (
@@ -385,7 +385,7 @@ let step_approvals () =
                                        subcommand.Api.Command.id in
             log.debug "Created a new run#%d" run_id
           ) else (
-            Db.Run.stop approve.run.id (-1)
+            Db.Run.stop approve.run.id Api.ExitStatus.timed_out
           ) in
         match approve.run.started, timeout, approve.time with
         | None, _, _ ->
@@ -396,7 +396,7 @@ let step_approvals () =
             if age > timeout then (
               log.info "Timing out wait for confirmation #%d after %fs"
                 approve.run.id age ;
-              unblock (-1) ;
+              unblock true
             ) else (
               log.debug "Waiting longer for the confirmation (timeout in %fs)."
                 (timeout -. age)
@@ -407,7 +407,7 @@ let step_approvals () =
         | Some _, _, Some t ->
             log.info "Confirmation #%d received, proceeding to next step."
               approve.run.id ;
-            unblock 0
+            unblock false
       )))
 
 (* The isolation commands can take a while so we run them asynchronously
