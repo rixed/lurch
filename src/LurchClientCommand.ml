@@ -73,7 +73,7 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
     op_selection ;
     (* Then the arguments of that specific operand: *)
     (match command.operation with
-    | Api.Command.Nop exit_code ->
+    | Api.Command.Nop { exit_code } ->
         div [
           p [ text "No-op does nothing but return the specified exit code." ] ;
           input_text ?id:(id "exit_code") ~label:"Exit code:" ~editable
@@ -149,7 +149,7 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
             li [
               edit_as_form ~op_mode ~editable
                 ?dom_id:(id (string_of_int (List.length subcommands)))
-                { operation = Nop 0 ; id = 0 } ] ]
+                { operation = Nop { exit_code = 0 } ; id = 0 } ] ]
           else lis in
         div [
           p [ text "Executes a sequence of command, one after the other." ] ;
@@ -192,7 +192,7 @@ let edit ~editable ?dom_id command =
  * it would be fetched from a cache of past values for that id: *)
 let rec command_of_form_exc ?add_input ?rem_input document dom_id =
   let id suff = dom_id ^"/"^ suff in
-  let opt_subcommand ?(def_op=Api.Command.Nop 0) suff =
+  let opt_subcommand ?(def_op=Api.Command.Nop { exit_code = 0 }) suff =
     try command_of_form_exc ?add_input ?rem_input document (id suff)
     with e ->
       (* Will happen each time an operation is changed: *)
@@ -272,7 +272,7 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
     match value "op" with
     | "no-op" ->
         let exit_code = value ~def:"0" "exit_code" in
-        Api.Command.Nop (int_of_string exit_code)
+        Api.Command.Nop { exit_code = int_of_string exit_code }
     | "isolate" ->
         let builder =
           opt_subcommand ~def_op:(Chroot { template="busybox" }) "builder"
@@ -302,9 +302,12 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
                              document (id (string_of_int i)) in
         let rec loop lst i =
           match subcommand i with
-          | exception _ -> List.rev lst
-          | { operation = Api.Command.Nop 0 ; _ } -> loop lst (i + 1)
-          | s -> loop (s :: lst) (i + 1) in
+          | exception _ ->
+              List.rev lst
+          | { operation = Api.Command.Nop { exit_code = 0 } ; _ } ->
+              loop lst (i + 1)
+          | s ->
+              loop (s :: lst) (i + 1) in
         let subcommands = loop [] 0 in
         Api.Command.Sequence { subcommands }
     | "retry" ->
@@ -349,7 +352,7 @@ let rec view run =
           ("#" ^ string_of_int run.id) ;
         text ")" ] ;
     (match run.command.operation with
-    | Nop exit_code ->
+    | Nop { exit_code } ->
         text ("Returns exit code "^ string_of_int exit_code)
     | Isolate { builder ; subcommand } ->
         ol [

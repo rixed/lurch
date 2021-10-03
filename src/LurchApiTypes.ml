@@ -15,7 +15,7 @@ let int_to_json_buffer d =
 module Command =
 struct
   type operation =
-    | Nop of int (* exit code *) (* FIXME: a record *)
+    | Nop of { exit_code : int }
     | Isolate of
         { builder : t ; subcommand : t }
     | Chroot of
