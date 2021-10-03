@@ -285,7 +285,7 @@ let update =
   | `GetMoreLogs run ->
       let offset = Array.length run.Api.Run.logs
       and limit = logs_limit in
-      log ("GetMoreLogs: currently have "^ string_of_int offset ^" lines") ;
+      (*log ("GetMoreLogs: currently have "^ string_of_int offset ^" lines") ;*)
       let ajax =
         let params = [ "run", string_of_int run.id ;
                        "offset", string_of_int offset ;
@@ -298,7 +298,7 @@ let update =
   | `GotMoreLogs (Ok res, top_run) ->
       let res = Api.LogLine.array_of_json_string res in
       let len = Array.length res in
-      log ("Got "^ string_of_int len ^" log lines!") ;
+      (*log ("Got "^ string_of_int len ^" log lines!") ;*)
       (match st.State.location with
       | ShowRun { run } when run.Api.Run.id = top_run.Api.Run.id ->
           let run = { run with logs = Array.append run.logs res } in

@@ -39,7 +39,7 @@ let create isolation_id template =
       Unix.open_process_in (bin_busybox ^" --list") |>
       IO.lines_of |>
       Enum.iter (fun applet ->
-        log.info "Populating chroot with %s" applet ;
+        log.debug "Populating chroot with %s" applet ;
         system_or_fail ("ln "^ shell_quote bin_busybox ^" "^
                                shell_quote (bin ^"/"^ applet)))
   | "buster" ->

@@ -114,7 +114,7 @@ let exec =
   Term.(
     (const exec $ dbg $ conninfo $ run_id $ chroot_prefix $ busybox),
     info ~doc:"execute given run id and quit. \
-               Not supposed to be called directly." 
+               Not supposed to be called directly."
          "_exec")
 
 let () =
