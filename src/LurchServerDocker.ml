@@ -29,14 +29,17 @@ let create isolation_id image =
          shell_quote image ^" 7200") in
   Db.DockerInstance.insert isolation_id instance docker_id
 
-let prepare_exec _image isolation_id pathname args env =
+(* FIXME: we actually cannot make use of pathname since the whole arguments have
+ * to be passed to docker, which does the execve. So probably Exec is too acurate
+ * for what we do and we should make it so that args[0] is "automatic". *)
+let prepare_exec _image isolation_id _pathname args env =
   let instance = Db.DockerInstance.get isolation_id in
   let in_env =
     Array.init (Array.length env * 2) (fun i ->
       if i mod 2 = 0 then "-e" else env.(i/2)) in
   let (++) = Array.append in
   let args = [| !docker ; "exec" |] ++ in_env ++ [| instance |] ++ args in
-  pathname, args, [||]
+  !docker, args, [||]
 
 let read_stats docker_id =
   let cgroup = "docker/" ^ docker_id in
