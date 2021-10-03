@@ -7,42 +7,58 @@ module Api = LurchApiTypes
 module Lang = LurchCommandLanguage
 open LurchClientLib
 
-type op_mode = TopLevel | Isolation | Normal
+type op_mode =
+  | NotIsolated (* Any command is available but Exec *)
+  | Isolation (* Only the isolation commands are permitted *)
+  | Isolated (* Isolate command is no longer an option, but Exec is *)
 
 let string_of_op_mode = function
-  | TopLevel -> "TopLevel"
+  | NotIsolated -> "NotIsolated"
   | Isolation -> "Isolation"
-  | Normal -> "Normal"
+  | Isolated -> "Isolated"
 
 (* TODO: also pass a set of commands which help has already been printed to avoid
  * re-printing it unnecessarily *)
-let rec edit_as_form ?(op_mode=Normal) ?(editable=true) ?dom_id command =
+let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
   (* Editable items have an id prefix of [dom_id] and suffix of [suff]: *)
   let id suff = option_map (fun pref -> pref ^"/"^ suff) dom_id in
   let refresh_msg ?add_input ?rem_input () =
     `RefreshProgram (dom_id, add_input, rem_input) in
   (* Start with a combo to select the command: *)
   let command_labels =
-    match op_mode with
-    | TopLevel ->
-        [ "isolate" ]
-    | Isolation ->
-        [ "chroot" ; "docker" ]
-    | Normal ->
-        [ "no-op" ; "exec" ; "approve" ; "sequence" ; "retry" ; "if" ;
-          "pause" ] in
+    if editable then
+      match op_mode with
+      | NotIsolated ->
+          [ "isolate" ;
+            "no-op" ; "approve" ; "sequence" ; "retry" ; "if" ; "pause" ]
+      | Isolation ->
+          [ "chroot" ; "docker" ]
+      | Isolated ->
+          [ "no-op" ; "exec" ; "approve" ; "sequence" ; "retry" ; "if" ;
+            "pause" ]
+    else [
+      (* This [edit] function can also be used to view any command out of
+       * context so spare the console from spurious error messages in that
+       * case: *)
+      "isolate" ; "chroot" ; "docker" ; "no-op" ; "exec" ; "approve" ;
+      "sequence" ; "retry" ; "if" ; "pause"
+    ] in
   let label_of_operation op =
     let l = Api.Command.name_of_operation op in
     if not (List.mem l command_labels) then
-      log ("not in command_labels: "^ l ^" while op_mode="^ string_of_op_mode op_mode) ;
+      log ("not in command_labels: "^ l ^" while op_mode="^
+           string_of_op_mode op_mode) ;
     assert (List.mem l command_labels) ;
     l in
   let op_selection =
     let id = id "op" in
-    if List.length command_labels = 1 then
+    if List.length command_labels = 1 then (
+      (* Still check that it's the right one: *)
+      let l = Api.Command.name_of_operation command.Api.Command.operation in
+      assert (List.mem l command_labels) ;
       (* Do not offer to choose the command if there is only one possible: *)
       input_hidden ?id (List.hd command_labels)
-    else
+    ) else (
       let selected = label_of_operation command.Api.Command.operation in
       let a =
         match dom_id with
@@ -51,7 +67,8 @@ let rec edit_as_form ?(op_mode=Normal) ?(editable=true) ?dom_id command =
          * command must be redrawn. *)
         | Some dom_id ->
             [ onchange_index (fun _ -> refresh_msg ()) ] in
-      select ~a ~editable ?id ~selected command_labels in
+      select ~a ~editable ?id ~selected command_labels
+    ) in
   div [
     op_selection ;
     (* Then the arguments of that specific operand: *)
@@ -69,7 +86,8 @@ let rec edit_as_form ?(op_mode=Normal) ?(editable=true) ?dom_id command =
           edit_as_form ~op_mode:Isolation ~editable ?dom_id:(id "builder")
             builder ;
           h3 [ text "Isolated command" ] ;
-          edit_as_form ~editable ?dom_id:(id "subcommand") subcommand ]
+          edit_as_form ~op_mode:Isolated ~editable ?dom_id:(id "subcommand")
+            subcommand ]
     | Chroot { template } ->
         div [
           p [ text "Chroot-based isolation will initially populate the chroot with \
@@ -117,17 +135,19 @@ let rec edit_as_form ?(op_mode=Normal) ?(editable=true) ?dom_id command =
           p [ radios ?id:(id "autosuccess") ~label:"On timeout:" ~editable
                 [ "proceed", "t" ; "fail", "f" ]
                 (Lang.sql_string_of_bool autosuccess) ] ;
-          edit_as_form ~editable ?dom_id:(id "subcommand") subcommand ]
+          edit_as_form ~op_mode ~editable ?dom_id:(id "subcommand")
+            subcommand ]
     | Sequence { subcommands } ->
         let lis =
           List.mapi (fun i subcommand ->
             li [
-              edit_as_form ~editable ?dom_id:(id (string_of_int i)) subcommand ]
+              edit_as_form ~op_mode ~editable ?dom_id:(id (string_of_int i))
+                subcommand ]
           ) subcommands in
         let lis =
           if editable then lis @ [
             li [
-              edit_as_form ~editable
+              edit_as_form ~op_mode ~editable
                 ?dom_id:(id (string_of_int (List.length subcommands)))
                 { operation = Nop 0 ; id = 0 } ] ]
           else lis in
@@ -139,7 +159,8 @@ let rec edit_as_form ?(op_mode=Normal) ?(editable=true) ?dom_id command =
           p [ text "Execute the given subcommand up to a given number of times \
                     until it succeeds." ] ;
           h3 [ text "Command" ] ;
-          edit_as_form ~editable ?dom_id:(id "subcommand") subcommand ;
+          edit_as_form ~op_mode ~editable ?dom_id:(id "subcommand")
+            subcommand ;
           input_text ?id:(id "up_to") ~label:"Up to:" ~units:"times" ~editable
             ~placeholder:"number…" (string_of_int up_to) ]
     | If { condition ; consequent ; alternative } ->
@@ -148,11 +169,11 @@ let rec edit_as_form ?(op_mode=Normal) ?(editable=true) ?dom_id command =
                     or the alternative, depending on the success of the \
                     condition." ] ;
           h3 [ text "Condition" ] ;
-          edit_as_form ~editable ?dom_id:(id "condition") condition ;
+          edit_as_form ~op_mode ~editable ?dom_id:(id "condition") condition ;
           h3 [ text "On Success" ] ;
-          edit_as_form ~editable ?dom_id:(id "consequent") consequent ;
+          edit_as_form ~op_mode ~editable ?dom_id:(id "consequent") consequent ;
           h3 [ text "On Failure" ] ;
-          edit_as_form ~editable ?dom_id:(id "alternative") alternative ]
+          edit_as_form ~op_mode ~editable ?dom_id:(id "alternative") alternative ]
     | Pause { duration ; subcommand } ->
         div [
           p [ text "Pause for the given amount of time before starting the \
@@ -160,10 +181,10 @@ let rec edit_as_form ?(op_mode=Normal) ?(editable=true) ?dom_id command =
           input_text ?id:(id "duration") ~label:"Duration:" ~units:"seconds" ~editable
             ~placeholder:"seconds…" (string_of_float duration) ;
           h3 [ text "Command" ] ;
-          edit_as_form ~editable ?dom_id:(id "subcommand") subcommand ]) ]
+          edit_as_form ~op_mode ~editable ?dom_id:(id "subcommand") subcommand ]) ]
 
 let edit ~editable ?dom_id command =
-  edit_as_form ~op_mode:TopLevel ~editable ?dom_id command
+  edit_as_form ~op_mode:NotIsolated ~editable ?dom_id command
 
 (* The reverse of edit_as_form (fail with an exception)
  * When a value is missing a default is assumed. This is required when updating
@@ -171,11 +192,11 @@ let edit ~editable ?dom_id command =
  * it would be fetched from a cache of past values for that id: *)
 let rec command_of_form_exc ?add_input ?rem_input document dom_id =
   let id suff = dom_id ^"/"^ suff in
-  let opt_subcommand suff =
+  let opt_subcommand ?(def_op=Api.Command.Nop 0) suff =
     try command_of_form_exc ?add_input ?rem_input document (id suff)
     with e ->
-      log ("Failed to build a command from the form: "^ Printexc.to_string e) ;
-      Api.Command.{ operation = Nop 0 ; id = 0 } in
+      (* Will happen each time an operation is changed: *)
+      Api.Command.{ operation = def_op ; id = 0 } in
   let value ?def suff =
     let id = id suff in
     match Js_browser.Document.get_element_by_id document id, def with
@@ -253,7 +274,8 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
         let exit_code = value ~def:"0" "exit_code" in
         Api.Command.Nop (int_of_string exit_code)
     | "isolate" ->
-        let builder = opt_subcommand "builder"
+        let builder =
+          opt_subcommand ~def_op:(Chroot { template="busybox" }) "builder"
         and subcommand = opt_subcommand "subcommand" in
         Api.Command.Isolate { builder ; subcommand }
     | "chroot" ->

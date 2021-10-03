@@ -1,6 +1,6 @@
 \connect lurch;
 
--- a simple build, no isolation
+-- a simple build
 
 insert into command default values;
 insert into command_exec (command, pathname, args) values
@@ -25,8 +25,18 @@ insert into command_sequence (command, subcommands) values
          (select max(command) from command_approve),
          (select max(command) from command_exec)]);
 
+insert into command default values;
+insert into command_chroot (command, template) values
+  ((select max(id) from command), 'busybox');
+
+insert into command default values;
+insert into command_isolate (command, builder, subcommand) values
+  ((select max(id) from command),
+   (select max(command) from command_chroot),
+   (select max(command) from command_sequence));
+
 insert into program (name, command) values
-  ('test build', (select max(command) from command_sequence));
+  ('test build', (select max(command) from command_isolate));
 
 -- test busybox chroot:
 

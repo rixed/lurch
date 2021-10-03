@@ -34,12 +34,19 @@ let get_program name =
 let del_program name =
   Db.Program.delete name
 
-(* Programs submitted via the GUI must not exec any non-isolated command: *)
+(* Programs submitted via the GUI must not execute any non-isolated binary: *)
 let rec check_isolation cmd =
   match cmd.Api.Command.operation with
-  | Api.Command.Nop _ | Isolate _ -> ()
+  | Api.Command.Nop _ | Isolate _ ->
+      ()
+  | Chroot _ | Docker _ ->
+      (* Because we do not recurse into Isolate *)
+      assert false
+  | Exec _ ->
+      failwith "Programs are not allowed to execute any binary unless isolated"
   | Approve { subcommand }
-  | Retry { subcommand } ->
+  | Retry { subcommand }
+  | Pause { subcommand } ->
       check_isolation subcommand
   | Sequence { subcommands } ->
       List.iter check_isolation subcommands
@@ -47,8 +54,6 @@ let rec check_isolation cmd =
       check_isolation condition ;
       check_isolation consequent ;
       check_isolation alternative
-  | _ ->
-      failwith "Programs submitted via the GUI must be isolated"
 
 let save_program prev_name program =
   let program = Api.Program.of_json_string program in
