@@ -23,8 +23,13 @@ struct
     | Docker of
         { image : string }
     | Exec of
-        { pathname : string ; args : string array ;
-          env : string array ; timeout : float option }
+        { pathname : string ;
+          (* [pathname] will be prepended automatically. This is unavoidable
+           * since when isolating with docker we actually do not perform the
+           * execve directly. *)
+          args : string array ;
+          env : string array ;
+          timeout : float option }
     | Approve of
         { subcommand : t ; timeout : float option ; comment : string ;
           autosuccess : bool }

@@ -275,7 +275,7 @@ let start_terminal run =
        * metrics only record the duration of its creation. *)
       let args =
         (* Leave it to /bin/sh to figure out the paths! *)
-        [| "/bin/sh" ; "-c" ;
+        [| "-c" ;
            shell_quote !lurch ^" _exec "^
            (if !is_debug then "--debug " else "") ^
            string_of_int run.id |] in

@@ -6,7 +6,7 @@ insert into command default values;
 insert into command_exec (command, pathname, args) values
   ((select max(id) from command),
    '/usr/bin/git',
-   '{"git","clone","https://github.com/rixed/lurch.git"}');
+   '{"clone","https://github.com/rixed/lurch.git"}');
 
 insert into command default values;
 insert into command_exec (command, pathname) values
@@ -42,7 +42,7 @@ insert into program (name, command) values
 
 insert into command default values;
 insert into command_exec (command, pathname, args) values
-  ((select max(id) from command), '/bin/ls', '{"ls","/bin"}');
+  ((select max(id) from command), '/bin/ls', '{"/bin"}');
 
 insert into command default values;
 insert into command_chroot (command, template) values
@@ -61,7 +61,7 @@ insert into program (name, command) values
 
 insert into command default values;
 insert into command_exec (command, pathname, args) values
-  ((select max(id) from command), '/usr/bin/docker', '{"docker","ps"}');
+  ((select max(id) from command), '/usr/bin/docker', '{"ps"}');
 
 insert into command default values;
 insert into command_docker (command, image) values
@@ -80,11 +80,11 @@ insert into program (name, command) values
 
 insert into command default values;
 insert into command_exec (command, pathname, args) values
-  ((select max(id) from command), '/usr/bin/git', '{"git","fetch","origin","master"}');
+  ((select max(id) from command), '/usr/bin/git', '{"fetch","origin","master"}');
 
 insert into command default values;
 insert into command_exec (command, pathname, args) values
-  ((select max(id) from command), '/usr/bin/git', '{"git","checkout","origin/master"}');
+  ((select max(id) from command), '/usr/bin/git', '{"checkout","origin/master"}');
 
 insert into command default values;
 insert into command_exec (command, pathname) values
@@ -92,21 +92,21 @@ insert into command_exec (command, pathname) values
 
 insert into command default values;
 insert into command_exec (command, pathname, args) values
-  ((select max(id) from command), '/usr/bin/make', '{"make","-j3"}');
+  ((select max(id) from command), '/usr/bin/make', '{"-j3"}');
 
 insert into command default values;
 insert into command_exec (command, pathname, args) values
-  ((select max(id) from command), '/usr/bin/make', '{"make","check"}');
+  ((select max(id) from command), '/usr/bin/make', '{"check"}');
 
 insert into command default values;
 insert into command_sequence (command, subcommands) values
   ((select max(id) from command),
    -- !!!WARNING WARNING WARNING!!! postgres arrays start at 1 !!!
-   ARRAY[(select command from command_exec where args[2] = 'fetch'),
-         (select command from command_exec where args[2] = 'checkout'),
+   ARRAY[(select command from command_exec where args[1] = 'fetch'),
+         (select command from command_exec where args[1] = 'checkout'),
          (select command from command_exec where pathname = 'configure'),
-         (select command from command_exec where args[2] = '-j3'),
-         (select command from command_exec where args[2] = 'check')]);
+         (select command from command_exec where args[1] = '-j3'),
+         (select command from command_exec where args[1] = 'check')]);
 
 insert into command default values;
 insert into command_docker (command, image) values

@@ -75,12 +75,14 @@ let exec isolate its_stdin its_stdout its_stderr =
       (* From there, the actual isolation technique will dictate what to do
        * before execing the subcommand. *)
       let pathname, args, env = isolate () in
-      log.debug "Going to execve %a with env %a into cgroup %s"
+      log.debug "Going to execve %s %a with env %a into cgroup %s"
+        pathname
         (Array.print String.print) args
         (Array.print String.print) env
         cgroup ;
       flush_all () ;
-      execve pathname args env
+      let argv = Array.append [| pathname |] args in
+      execve pathname argv env
     with e ->
       Printf.eprintf "Cannot execve: %s\n%!" (Printexc.to_string e) ;
       sys_exit 127
