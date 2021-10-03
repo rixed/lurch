@@ -279,7 +279,10 @@ let start_terminal run =
            shell_quote !lurch ^" _exec "^
            (if !is_debug then "--debug " else "") ^
            string_of_int run.id |] in
-      start_process "/bin/sh" ~args ~timeout:!command_timeout run
+      let env =
+        [| "BUSYBOX="^ !Chroot.busybox ;
+           "LURCH_CHROOTS="^ !Chroot.chroot_prefix |] in
+      start_process "/bin/sh" ~args ~env ~timeout:!command_timeout run
   (* Those are not terminals: *)
   | Isolate _
   | Approve _

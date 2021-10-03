@@ -23,7 +23,19 @@ let () =
 
 let dbg =
   let env = Term.env_info "LURCH_DEBUG" in
-  Arg.(value (flag (info ~env ~doc:"increase verbosity." ["d"; "debug"])))
+  Arg.(value (flag (info ~env ~doc:"increase verbosity." [ "d" ; "debug" ])))
+
+let chroot_prefix =
+  let env = Term.env_info "LURCH_CHROOTS" in
+  let i = Arg.info ~env ~doc:"Where to create chroots." ~docv:"PATH"
+                   [ "chroots "] in
+  Arg.(value (opt string !LurchServerChroot.chroot_prefix i))
+
+let busybox =
+  let env = Term.env_info "BUSYBOX" in
+  let i = Arg.info ~env ~doc:"Where to find statically linked busybox."
+                   ~docv:"PATH" [ "busybox"] in
+  Arg.(value (opt string !LurchServerChroot.busybox i))
 
 let conninfo =
   let env = Term.env_info "LURCH_DB" in
@@ -55,13 +67,17 @@ let start dbg conninfo program_name () =
   log.info "Program %s started as run #%d." program_name run_id ;
   Db.close ()
 
-let step dbg conninfo () =
+let step dbg conninfo chroot_prefix busybox () =
+  LurchServerChroot.chroot_prefix := chroot_prefix ;
+  LurchServerChroot.busybox := busybox ;
   init_log dbg true ;
   Db.init conninfo ;
   Command.step () ;
   Db.close ()
 
-let exec dbg conninfo run_id () =
+let exec dbg conninfo run_id chroot_prefix busybox () =
+  LurchServerChroot.chroot_prefix := chroot_prefix ;
+  LurchServerChroot.busybox := busybox ;
   init_log ~with_time:false dbg true ;
   Db.init conninfo ;
   log.debug "Executing run#%d" run_id ;
@@ -90,13 +106,13 @@ let start =
 (* Perform a single step of any pending run: *)
 let step =
   Term.(
-    (const step $ dbg $ conninfo),
+    (const step $ dbg $ conninfo $ chroot_prefix $ busybox),
     info ~doc:"Perform the next step of execution." "step")
 
 (* Allows to execute internal commands as a separate process: *)
 let exec =
   Term.(
-    (const exec $ dbg $ conninfo $ run_id),
+    (const exec $ dbg $ conninfo $ run_id $ chroot_prefix $ busybox),
     info ~doc:"execute given run id and quit. \
                Not supposed to be called directly." 
          "_exec")

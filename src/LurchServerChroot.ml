@@ -12,7 +12,11 @@ module Files = LurchServerFiles
 (* Create and populate a chroot and return its full path *)
 let chroot_prefix = ref "/tmp/lurch/chroots"
 
-let busybox = ref "/home/rixed/bin/busybox"
+let busybox =
+  ref (
+    match Sys.getenv "HOME" with
+    | exception Not_found -> "/usr/bin/busybox"
+    | home -> home ^"/bin/busybox")
 
 (* Create a new chroot and record its path in the Db.
  * [isolation_id] identifies the command_chroot run. *)
