@@ -389,9 +389,11 @@ let rec view run =
         let args = txt_of_strings args
         and env = txt_of_strings env in
         div [
-          p ([ text "Execute program: " ; config_txt pathname ] @ args) ;
-          (if env = [] then no_elt else
-            p (text "With environment: " :: env)) ;
+          p (
+            [ text "Execute program: " ; config_txt pathname ;
+              text " with arguments: " ] @ args @
+              (if env = [] then [] else (text " in environment: " :: env))
+          ) ;
           match timeout with
           | None ->
               no_elt

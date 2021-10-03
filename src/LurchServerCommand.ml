@@ -203,9 +203,8 @@ let isolate isolation_run pathname args env () =
   | _ -> assert false
 
 let start_process pathname ~args ?(env=[||]) ?timeout run =
-  (* [env] will be set according to the isolation layer *)
   (* Isolation: most of the time, commands must run within a container of
-   * some sort (chroot, docker instance...
+   * some sort (chroot, docker instance...)
    * First, lookup the chain of parents to find the isolation mechanism
    * in use: *)
   let isolation_run = lookup_isolation run in
