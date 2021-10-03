@@ -156,13 +156,26 @@ let program_editor program ~editable last_runs =
             else
               [ button "Run" (`StartProgram saved_name) ]) @
             [ horiz_spacer ] @
+            (match editable, program.saved with
+            | true, Some saved ->
+                [ button "Cancel"
+                    (* FIXME: Neither redirecting to ShowProgram or fetching again
+                     * with (`GetProgram saved.name) does refresh the input values
+                     * properly.
+                     * For some reason, even though the html contains the proper
+                     * value the displayed text is still the old one. Bug in the
+                     * diff? *)
+                    (`SetLocation (State.ShowProgram {
+                      program = { program with edited = saved } ;
+                      editable = false ; last_runs })) ]
+            | _ ->
+                (* If not editable or if this is a new program, skip the cancel
+                 * button: *)
+                []) @
             (if editable then
               let prev_name =
                 match program.saved with Some saved -> saved.Api.Program.name
-                                 | None -> "" in [
-              button "Cancel"
-                (`SetLocation (State.ShowProgram { program ; editable = false ;
-                                                   last_runs })) ;
+                                       | None -> "" in [
               button "Save" (`SaveProgram prev_name)
             ] else [
               button "Edit" (`SetLocation (State.ShowProgram
