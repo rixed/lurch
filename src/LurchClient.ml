@@ -238,9 +238,16 @@ let update =
   | `StartedProgram (Ok res) ->
       log_js (Js_browser.JSON.parse res) ;
       let run = Api.Run.of_json_string res in
-      return ~c:[Vdom.Cmd.echo (`GetMoreLogs run)]
-        State.{ st with location = ShowRun { run ; more_logs_expected = true } ;
-                        waiting = false }
+      (* Move to ShowRun if this program is still on display: *)
+      (match st.State.location with
+      | State.ShowProgram { program = Program.{ saved = Some p ; _ } ; _ }
+        when run.Api.Run.program = Some p.Api.Program.name ->
+          return ~c:[Vdom.Cmd.echo (`GetMoreLogs run)]
+            State.{ st with location = ShowRun { run ; more_logs_expected = true } ;
+                            waiting = false }
+      | _ ->
+          log "StartedProgram while not displaying that program, ignoring" ;
+          return st)
   | `GetRun (run_id, logs) ->
       let ajax =
         Http_get { url = lurch_url "get_run" [ "id", string_of_int run_id ] ;
