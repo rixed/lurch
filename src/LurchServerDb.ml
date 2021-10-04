@@ -240,6 +240,27 @@ struct
     insert_or_update c |> int_of_string
 end
 
+(* Sum the stats of every descendant of the given run (excluding that run) *)
+module DescStats =
+struct
+  let rec get id =
+    let cnx = get_cnx () in
+    let params =
+      [| string_of_int id |] in
+    let res =
+      cnx#exec ~expect:[Tuples_ok] ~params
+        "select id, cpu_usr, cpu_sys, mem_usr, mem_sys
+         from run
+         where id <> parent_run and parent_run = $1" in
+    let getv conv i j = conv (res#getvalue i j) in
+    let tot = ref Api.RunStats.none in
+    for i = 0 to res#ntuples - 1 do
+      let desc = get (getv int_of_string i 0) in
+      tot := Api.RunStats.add !tot desc
+    done ;
+    !tot
+ end
+
 module Run =
 struct
   let rec get id =
@@ -257,6 +278,7 @@ struct
            extract(epoch from r.started), \
            extract(epoch from r.stopped), \
            r.cgroup, r.pid, r.exit_code, \
+           r.cpu_usr, r.cpu_sys, r.mem_usr, r.mem_sys, \
            array(select id from run where parent_run = r.id order by id) \
              as children, \
            w.message, c.path, d.instance, d.docker_id \
@@ -284,12 +306,18 @@ struct
       cgroup = getn identity 7 ;
       pid = getn int_of_string 8 ;
       exit_code = getn int_of_string 9 ;
-      children = array (getv identity 10) |>
+      stats_self =
+        { cpu_usr = getn float_of_string 10 ;
+          cpu_sys = getn float_of_string 11 ;
+          mem_usr = getn int_of_string 12 ;
+          mem_sys = getn int_of_string 13 } ;
+      stats_desc = DescStats.get id ;
+      children = array (getv identity 14) |>
                  Array.map (get % int_of_string) ;
-      confirmation_msg = getn identity 11 ;
-      chroot_path = getn identity 12 ;
-      docker_instance = getn identity 13 ;
-      docker_id = getn identity 14 ;
+      confirmation_msg = getn identity 15 ;
+      chroot_path = getn identity 16 ;
+      docker_instance = getn identity 17 ;
+      docker_id = getn identity 18 ;
       (* Populated independently as we do want to load logs on demand only: *)
       logs = [||] }
 
@@ -589,8 +617,8 @@ struct
                  extract(epoch from created), \
                  extract(epoch from started), \
                  extract(epoch from stopped), \
-                 cpu_usr, cpu_sys, mem_usr, mem_sys, \
-                 exit_code
+                 exit_code, \
+                 cpu_usr, cpu_sys, mem_usr, mem_sys \
          from list_past_runs \
          where true " ^
          (if oldest_top_run = None then "" else
@@ -603,17 +631,20 @@ struct
       let getv conv j = conv (res#getvalue i j) in
       let getn conv j = if res#getisnull i j then None else Some (getv conv j) in
       log.debug "Got tuple %a" (Array.print String.print) (res#get_tuple i) ;
+      let top_run = getv int_of_string 1 in
       Api.ListPastRuns.{
         name = getv identity 0 ;
-        top_run = getv int_of_string 1 ;
+        top_run ;
         created = getv float_of_string 2 ;
         started = getn float_of_string 3 ;
         stopped = getn float_of_string 4 ;
-        cpu_usr = getn float_of_string 5 ;
-        cpu_sys = getn float_of_string 6 ;
-        mem_usr = getn int_of_string 7 ;
-        mem_sys = getn int_of_string 8 ;
-        exit_code = getn int_of_string 9 })
+        exit_code = getn int_of_string 5 ;
+        stats_self =
+          { cpu_usr = getn float_of_string 6 ;
+            cpu_sys = getn float_of_string 7 ;
+            mem_usr = getn int_of_string 8 ;
+            mem_sys = getn int_of_string 9 } ;
+        stats_desc = DescStats.get top_run })
 end
 
 (*

@@ -53,7 +53,8 @@ let bgcolor_of = function
 let list_past_runs runs =
   div [
     let columns =
-      [ "run#" ; "program" ; "started" ; "stopped" ; "cpu" ; "mem" ; "outcome" ] in
+      [ "run#" ; "program" ; "started" ; "stopped" ;
+        "resources (self+children)" ; "outcome" ] in
     let header = simple_table_header columns in
     let footer =
       [ tr [
@@ -79,12 +80,7 @@ let list_past_runs runs =
             td ~a:[ class_ "click time" ; goto_run ]
               [ text (date_of_tsn (r.stopped) |? "running") ] ]) @
         [
-          td ~a:[ class_ "click" ; goto_run ] [
-            text ((option_map string_of_float r.cpu_usr |? "n.a") ^" usr + "^
-                  (option_map string_of_float r.cpu_sys |? "n.a") ^" sys") ] ;
-          td ~a:[ class_ "click" ; goto_run ] [
-            text ((option_map string_of_int r.mem_usr |? "n.a") ^" usr + "^
-                  (option_map string_of_int r.mem_sys |? "n.a") ^" sys") ] ;
+          td ~a:[ class_ "click" ; goto_run ] [ stats r.stats_self r.stats_desc ];
           let outcome, color = outcome r.exit_code in
           let bgcolor = bgcolor_of color in
           td ~a:[ class_ "click" ; goto_run ; bgcolor]
@@ -190,10 +186,11 @@ let program_editor program ~editable last_runs =
       (* List of past runs *)
       h2 [ text "Past Runs" ] ;
       let header =
-        simple_table_header [ "started" ; "stopped" ; "outcome" ] in
+        simple_table_header
+          [ "started" ; "stopped" ; "resources" ; "outcome" ] in
       let footer =
         [ tr [
-            td ~a:[colspan 3]
+            td ~a:[colspan 4]
               [ button "more" (`GetLastRuns saved_name) ] ] ] in
       let len = Array.length last_runs in
       table ~header ~footer (List.init len (fun i ->
@@ -207,6 +204,7 @@ let program_editor program ~editable last_runs =
                 [ text (date_of_ts (option_get r.started)) ] ;
               td ~a:[ class_ "time" ]
                 [ text (date_of_tsn r.stopped |? "running") ] ] @
+          [ td [ stats r.stats_self r.stats_desc ] ] @
           [ let txt, color = outcome r.exit_code in
             let bgcolor = bgcolor_of color in
             td ~a:[ bgcolor ] [ text txt ] ]))) ] ]

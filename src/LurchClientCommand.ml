@@ -484,9 +484,11 @@ let rec view run =
             text (date_of_ts stopped) ;
             text "." ]
     | Some stopped, Some status ->
-        p ~a:[ class_ "status" ]
-          [ text "Stopped at " ;
-            text (date_of_ts stopped) ;
-            text "." ; br () ;
-            txt_span ~a:[ class_ (class_of_status status) ]
-              (Api.ExitStatus.to_string status) ]) ]
+        div [
+          p ~a:[ class_ "status" ]
+            [ text "Stopped at " ;
+              text (date_of_ts stopped) ;
+              text "." ] ;
+          stats run.stats_self run.stats_desc ;
+          txt_span ~a:[ class_ (class_of_status status) ]
+            (Api.ExitStatus.to_string status) ]) ]

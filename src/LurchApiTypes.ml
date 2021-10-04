@@ -207,6 +207,39 @@ struct
     | Interrupted _ | Cancelled -> Warn
 end
 
+module RunStats =
+struct
+  type t =
+    { cpu_usr : float option ;
+      cpu_sys : float option ;
+      mem_usr : int option ;
+      mem_sys : int option }
+    [@@deriving json]
+
+  let none =
+    { cpu_usr = None ;
+      cpu_sys = None ;
+      mem_usr = None ;
+      mem_sys = None }
+
+  let add a b =
+    let do_op op a b =
+      match a, b with
+      | Some a, Some b -> Some (op a b)
+      | Some a, None | None, Some a -> Some a
+      | None, None -> None in
+    let (+) = do_op (+)
+    and (+.) = do_op (+.) in
+    { cpu_usr = a.cpu_usr +. b.cpu_usr ;
+      cpu_sys = a.cpu_sys +. b.cpu_sys ;
+      mem_usr = a.mem_usr + b.mem_usr ;
+      mem_sys = a.mem_sys + b.mem_sys }
+
+  let to_json_string = to_json_string to_json
+  let to_json_buffer = to_json_buffer to_json
+  let of_json_string : string -> t = [%of_json: t]
+end
+
 module Run =
 struct
   type t =
@@ -221,6 +254,9 @@ struct
       cgroup : string option ;
       pid : int option ;
       exit_code : int option ;
+      (* Stats: *)
+      stats_self : RunStats.t ;
+      stats_desc : RunStats.t ;
       (* Children are reified here because it makes displaying runs much
        * easier for the client: *)
       children : t array ;
@@ -250,11 +286,9 @@ struct
       created : float ;
       started : float option ;
       stopped : float option ;
-      cpu_usr : float option ;
-      cpu_sys : float option ;
-      mem_usr : int option ;
-      mem_sys : int option ;
-      exit_code : int option }
+      exit_code : int option ;
+      stats_self : RunStats.t ;
+      stats_desc : RunStats.t }
     [@@deriving json]
 
   type ts = t array

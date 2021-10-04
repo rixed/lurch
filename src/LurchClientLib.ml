@@ -369,3 +369,22 @@ let run_http_put ~url ~payload ~callback () =
 
 let run_http_del ~url ~callback () =
   run_http ~command:"DELETE" ~url ~callback ()
+
+(* Display the stats of a run: *)
+let stats self desc =
+  let of_opt conv = function
+    | None -> "n.a"
+    | Some v -> conv v in
+  let of_float = of_opt string_of_float
+  and of_int = of_opt string_of_int in
+  div [
+    p [ text ("CPU: "^
+              of_float self.Api.RunStats.cpu_usr ^"+"^
+              of_float desc.Api.RunStats.cpu_usr ^" usr + "^
+              of_float self.cpu_sys ^"+"^
+              of_float desc.cpu_sys ^" sys") ] ;
+    p [ text ("RAM: "^
+              of_int self.mem_usr ^"+"^
+              of_int desc.mem_usr ^" usr + "^
+              of_int self.mem_sys ^"+"^
+              of_int desc.mem_sys ^" sys") ] ]
