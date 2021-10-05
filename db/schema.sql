@@ -363,7 +363,6 @@ create view list_pending_approval as
   select
     r.id as run,
     c.time,
-    c.message,
     w.autosuccess
   from run r
   join command_approve w on w.command = r.command

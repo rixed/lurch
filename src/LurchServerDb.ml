@@ -820,7 +820,7 @@ struct
     let cnx = get_cnx () in
     let res =
       cnx#exec ~expect:[Tuples_ok]
-        "select run, extract(epoch from time), message, autosuccess \
+        "select run, extract(epoch from time), autosuccess \
         from list_pending_approval order by time" in
     log.debug "%d approvals are waiting." res#ntuples ;
     Enum.init res#ntuples (fun i ->
@@ -829,8 +829,7 @@ struct
         run = Run.get (int_of_string (res#getvalue i 0)) ;
         time = if res#getisnull i 1 then None else
                  Some (float_of_string (res#getvalue i 1)) ;
-        message = res#getvalue i 2 ;
-        autosuccess = Lang.sql_bool_of_string (res#getvalue i 3) })
+        autosuccess = Lang.sql_bool_of_string (res#getvalue i 2) })
 end
 
 module ListPendingIsolations =

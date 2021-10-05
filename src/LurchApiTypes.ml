@@ -368,7 +368,6 @@ struct
   type t =
     { run : Run.t ;
       time : float option ; (* None if still unconfirmed *)
-      message : string ;
       autosuccess : bool }
 end
 
