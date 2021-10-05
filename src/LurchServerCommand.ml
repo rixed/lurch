@@ -287,6 +287,7 @@ let start_terminal run =
   (* Those are not terminals: *)
   | Isolate _
   | Approve _
+  | Let _
   | Sequence _
   | Retry _
   | Pause _
@@ -453,6 +454,31 @@ let step_approvals () =
             unblock false
       )))
 
+let step_lets () =
+  Db.ListPendingLets.get () |>
+  Enum.iter (fun Api.ListPendingLets.{ run ; subrun ; subcommand } ->
+    log_exceptions (fun () ->
+      match subrun with
+      | None ->
+          Db.Run.start run.id ;
+          (* No builder yet: start one *)
+          let subrun = Db.Run.insert ~top_run:run.top_run
+                                     ~parent_run:run.id
+                                     subcommand in
+          let line =
+            "Starting let-binding subcommand as #"^ string_of_int subrun in
+          Db.LogLine.insert run.id 1 line
+      | Some subrun ->
+          (match subrun.Api.Run.exit_code with
+          | Some exit_code ->
+              let line =
+                "Stopping let-binding with exit code "^ string_of_int exit_code in
+              Db.LogLine.insert run.id 1 line ;
+              Db.Run.stop run.id exit_code
+          | None ->
+              (* Because of list_pending_lets definition: *)
+              assert false)))
+
 (* The isolation commands can take a while so we run them asynchronously
  * and wait for their specific entry in their additional tables to proceed
  * to the subcommand: *)
@@ -570,6 +596,8 @@ let step () =
   step_conditionals () ;
   (* Check if some waits have been confirmed: *)
   step_approvals () ;
+  (* Implement the let bindings: *)
+  step_lets () ;
   (* Check if some isolation layer have to be build: *)
   step_isolation () ;
   (* Check if some pauses are over: *)

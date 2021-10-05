@@ -74,6 +74,16 @@ create table command_approve (
   foreign key (subcommand) references command (id)
 );
 
+create table command_let (
+  command int,
+  subcommand int not null,
+  var_name text not null,
+  default_value text not null default '',
+  comment text not null default '',
+  foreign key (command) references command (id) on delete cascade,
+  foreign key (subcommand) references command (id)
+);
+
 create table command_sequence (
   command int,
   subcommands int array not null, -- TODO: each of those must reference command
@@ -194,6 +204,15 @@ create table docker_instance (
   run int not null, -- must be a command_docker
   instance text not null,
   docker_id text not null,
+
+  foreign key (run) references run (id) on delete cascade,
+  unique (run)
+);
+
+-- Where to store variables values:
+create table let_value (
+  run int not null, -- must be a command_let
+  value text not null,
 
   foreign key (run) references run (id) on delete cascade,
   unique (run)
@@ -350,6 +369,19 @@ create view list_pending_approval as
   join command_approve w on w.command = r.command
   left outer join approved c on c.run = r.id
   where r.stopped is null;
+
+-- List all bindings (with a value) that can make some progress, either by starting
+-- the subcommand or stopping the run when the subcommand is finished.
+create view list_pending_lets as
+  select
+    r.id as run, -- run itself will be fetched separately for simplicity
+    r2.id as subrun, -- optional subrun
+    c.subcommand as subcommand -- the subcommand to start with the binding
+  from run r
+  join command_let c on c.command = r.command
+  join let_value v on v.run = r.id
+  left outer join run r2 on c.subcommand = r2.command
+  where r.stopped is null and (r2.id is null or r2.stopped is not null);
 
 -- List all containers/chroot that have to be build
 create view list_pending_isolations as

@@ -33,6 +33,9 @@ struct
     | Approve of
         { subcommand : t ; timeout : float option ; comment : string ;
           autosuccess : bool }
+    | Let of
+        { subcommand : t ; var_name : string ; default : string ;
+          comment : string }
     | Sequence of
         { subcommands : t list }
     | Retry of
@@ -52,6 +55,7 @@ struct
         f u cmd
     | Isolate { subcommand }
     | Approve { subcommand }
+    | Let { subcommand }
     | Retry { subcommand }
     | Pause { subcommand } ->
         let u = fold f u subcommand in
@@ -76,6 +80,7 @@ struct
     | Docker _ -> "docker"
     | Exec _ -> "exec"
     | Approve _ -> "approve"
+    | Let _ -> "let"
     | Sequence _ -> "sequence"
     | Retry _ -> "retry"
     | If _ -> "if"
@@ -106,6 +111,9 @@ struct
         "Approve(subcommand:"^ to_string subcommand ^", timeout:"^
         or_null string_of_float timeout ^ ",comment:"^ comment ^", autosuccess:"^
         string_of_bool autosuccess ^")"
+    | Let { var_name ; default ; subcommand ; comment } ->
+        "Let(var_name:"^ var_name ^", default:"^ default ^
+        "subcommand:"^ to_string subcommand ^", comment:"^ comment ^")"
     | Sequence { subcommands } ->
         "Sequence("^ join to_string subcommands ^")"
     | Retry { subcommand ; up_to } ->
@@ -270,7 +278,8 @@ struct
       confirmation_msg : string option ;
       chroot_path : string option ;
       docker_instance : string option ;
-      docker_id : string option }
+      docker_id : string option ;
+      var_value : string option }
     [@@deriving json]
 
   let to_json_string = to_json_string to_json
@@ -361,4 +370,12 @@ struct
       time : float option ; (* None if still unconfirmed *)
       message : string ;
       autosuccess : bool }
+end
+
+module ListPendingLets =
+struct
+  type t =
+    { run : Run.t ;
+      subrun : Run.t option ;
+      subcommand : int }
 end

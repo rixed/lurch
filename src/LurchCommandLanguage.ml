@@ -147,6 +147,8 @@ let command_of_string str =
           if timeout = "null" then None else Some (float_of_string timeout) in
         Approve { subcommand = command_of_sexpr s ; timeout ; comment ;
                   autosuccess = sql_bool_of_string autosuccess }
+    | Lst [ Sym "let" ; Str var_name ; Str default ; Str comment ; s ] ->
+        Let { var_name ; default ; comment ; subcommand = command_of_sexpr s }
     | Lst (Sym "sequence" :: cmds) ->
         Sequence { subcommands = List.map command_of_sexpr cmds }
     | Lst [ Sym "retry" ; s ; Sym up_to ] ->
@@ -196,6 +198,12 @@ let string_of_command ?max_depth cmd =
                                     | Some t -> string_of_float t) ;
               Str comment ;
               Sym (sql_string_of_bool autosuccess) ;
+              sexpr_of_command ?max_depth subcommand ]
+    | Let { var_name ; default ; subcommand ; comment } ->
+        Lst [ Sym "let" ;
+              Str var_name ;
+              Str default ;
+              Str comment ;
               sexpr_of_command ?max_depth subcommand ]
     | Sequence { subcommands } ->
         Lst (Sym "sequence" ::

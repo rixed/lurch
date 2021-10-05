@@ -45,6 +45,7 @@ let rec check_isolation cmd =
   | Exec _ ->
       failwith "Programs are not allowed to execute any binary unless isolated"
   | Approve { subcommand }
+  | Let { subcommand }
   | Retry { subcommand }
   | Pause { subcommand } ->
       check_isolation subcommand
@@ -90,6 +91,9 @@ let start_program name =
 
 let approve run_id msg =
   Db.Approval.insert run_id msg
+
+let set_variable run_id value =
+  Db.LetValue.insert run_id value
 
 let serve () =
   let debug_to_stderr = true in
@@ -138,6 +142,10 @@ let serve () =
         let run_id = get_param "run" int_of_string
         and msg = get_param "message" identity in
         approve run_id msg
+    | "set_variable" ->
+        let run_id = get_param "run" int_of_string
+        and value = get_param "value" identity in
+        set_variable run_id value
     | _ ->
         unknown ()) ;
     Cgi.header ~status:200 () ;

@@ -108,7 +108,7 @@ struct
     let tables = [| "command_isolate" ; "command_chroot" ; "command_docker" ;
                     "command_exec" ; "command_approve" ; "command_sequence" ;
                     "command_retry" ; "command_if" ; "command_nop" ;
-                    "command_pause" |] in
+                    "command_pause" ; "command_let" |] in
     let operation =
       array_find_mapi (fun i ->
         let params = [| string_of_int id |] in
@@ -163,6 +163,12 @@ struct
               Api.Command.Pause
                 { subcommand = get (int_of_string (getv 1)) ;
                   duration = float_of_string (getv 2) }
+          | 10 ->
+              Api.Command.Let {
+                subcommand = get (int_of_string (getv 1)) ;
+                var_name = getv 2 ;
+                default = getv 3 ;
+                comment = getv 4 }
           | _ ->
               assert false)
         )
@@ -199,6 +205,12 @@ struct
              "timeout", or_null string_of_float timeout ;
              "comment", comment ;
              "autosuccess", Lang.sql_string_of_bool autosuccess |]
+      | Let { var_name ; default ; subcommand ; comment } ->
+          "command_let",
+          [| "subcommand", insert_or_update subcommand ;
+             "var_name", var_name ;
+             "default_value", default ;
+             "comment", comment |]
       | Sequence { subcommands } ->
           let ids = List.map insert_or_update subcommands in
           "command_sequence",
@@ -281,13 +293,14 @@ struct
            r.cpu_usr, r.cpu_sys, r.mem_usr, r.mem_sys, \
            array(select id from run where parent_run = r.id order by id) \
              as children, \
-           w.message, c.path, d.instance, d.docker_id \
+           w.message, c.path, d.instance, d.docker_id, v.value \
          from run r \
          join run rtop on rtop.id = coalesce(r.top_run, r.id) \
          left outer join program p on p.command = rtop.command \
          left outer join approved w on w.run = r.id \
          left outer join chroot_path c on c.run = r.id \
          left outer join docker_instance d on d.run = r.id \
+         left outer join let_value v on v.run = r.id \
          where r.id = $1" in
     if res#ntuples <> 1 then
       failwith ("Cannot find a unique run with id "^ string_of_int id) ;
@@ -318,6 +331,7 @@ struct
       chroot_path = getn identity 16 ;
       docker_instance = getn identity 17 ;
       docker_id = getn identity 18 ;
+      var_value = getn identity 19 ;
       (* Populated independently as we do want to load logs on demand only: *)
       logs = [||] }
 
@@ -765,6 +779,39 @@ struct
       Printf.sprintf "Cannot confirm run %d: %s\n" run_id
         (Printexc.to_string e) |>
       failwith
+end
+
+module LetValue =
+struct
+  let insert run_id value =
+    let cnx = get_cnx () in
+    let params = [| string_of_int run_id ; value |] in
+    try
+      cnx#exec ~expect:[Command_ok] ~params
+        "insert into let_value (run, value) values ($1, $2)" |>
+      ignore
+    with e ->
+      Printf.sprintf "Cannot set variable value for run %d to %S: %s\n"
+        run_id value (Printexc.to_string e) |>
+      failwith
+end
+
+module ListPendingLets =
+struct
+  let get () =
+    let cnx = get_cnx () in
+    let res =
+      cnx#exec ~expect:[Tuples_ok]
+        "select run, subrun, subcommand from list_pending_lets" in
+    log.debug "%d lets are waiting." res#ntuples ;
+    Enum.init res#ntuples (fun i ->
+      log.debug "Got tuple %a" (Array.print String.print) (res #get_tuple i) ;
+      let getv conv j = conv (res#getvalue i j) in
+      let getn conv j = if res#getisnull i j then None else Some (getv conv j) in
+      Api.ListPendingLets.{
+        run = Run.get (getv int_of_string 0) ;
+        subrun = Option.map Run.get (getn int_of_string 1) ;
+        subcommand = getv int_of_string 2 })
 end
 
 module ListPendingApprovals =

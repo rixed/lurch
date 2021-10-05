@@ -30,18 +30,19 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
       match op_mode with
       | NotIsolated ->
           [ "isolate" ;
-            "no-op" ; "approve" ; "sequence" ; "retry" ; "if" ; "pause" ]
+            "no-op" ; "approve" ; "sequence" ; "retry" ; "if" ; "pause" ;
+            "let" ]
       | Isolation ->
-          [ "chroot" ; "docker" ]
+          [ "chroot" ; "docker" ; "let" ]
       | Isolated ->
           [ "no-op" ; "exec" ; "approve" ; "sequence" ; "retry" ; "if" ;
-            "pause" ]
+            "pause" ; "let" ]
     else [
       (* This [edit] function can also be used to view any command out of
        * context so spare the console from spurious error messages in that
        * case: *)
       "isolate" ; "chroot" ; "docker" ; "no-op" ; "exec" ; "approve" ;
-      "sequence" ; "retry" ; "if" ; "pause"
+      "sequence" ; "retry" ; "if" ; "pause" ; "let"
     ] in
   let label_of_operation op =
     let l = Api.Command.name_of_operation op in
@@ -135,6 +136,19 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
           p [ radios ?id:(id "autosuccess") ~label:"On timeout:" ~editable
                 [ "proceed", "t" ; "fail", "f" ]
                 (Lang.sql_string_of_bool autosuccess) ] ;
+          edit_as_form ~op_mode ~editable ?dom_id:(id "subcommand")
+            subcommand ]
+    | Let { var_name ; default ; subcommand ; comment } ->
+        div [
+          p [ text "Variable entered by the user that will then be substituted
+                    within every subcommand parameters." ] ;
+          div [
+            p [ text "Text for user:" ] ;
+            textarea ?id:(id "comment") ~editable [ text comment ] ] ;
+          p [ input_text ?id:(id "var_name") ~label:"Variable Name:"
+                ~editable var_name ] ;
+          p [ input_text ?id:(id "default") ~label:"Default Value:"
+                ~editable default ] ;
           edit_as_form ~op_mode ~editable ?dom_id:(id "subcommand")
             subcommand ]
     | Sequence { subcommands } ->
@@ -297,6 +311,12 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
         and autosuccess =
           Lang.sql_bool_of_string (value_radio ~def:"t" "autosuccess") in
         Api.Command.Approve { subcommand ; timeout ; comment ; autosuccess }
+    | "let" ->
+        let subcommand = opt_subcommand "subcommand"
+        and var_name = value ~def:"name" "var_name"
+        and default = value ~def:"" "default"
+        and comment = value ~def:"" "comment" in
+        Api.Command.Let { subcommand ; var_name ; default ; comment }
     | "sequence" ->
         let subcommand i = command_of_form_exc ?add_input ?rem_input
                              document (id (string_of_int i)) in
@@ -428,6 +448,22 @@ let rec view run =
                   [ text " with message: " ; text msg ]
                 else
                   [ text " with no message" ])) ;
+          view_subcommand subcommand ]
+    | Let { subcommand ; comment ; var_name ; default } ->
+        div [
+          (match run.var_value with
+          | None ->
+              (* Still unset: *)
+              let msg_dom_id = "run_var_value_" ^ string_of_int run.id in
+              div (
+                (if comment <> "" then [ p [ text comment ] ] else []) @
+                (if run.stopped = None then [
+                  input_text ~label:"Value:" ~id:msg_dom_id default ;
+                  button "Set"
+                    (`SetVariable (run.id, msg_dom_id, run.top_run)) ]
+                else []))
+          | Some value ->
+              p [ text (var_name ^" is set to "^ value) ]) ;
           view_subcommand subcommand ]
     | Sequence { subcommands } ->
         let num_steps = List.length subcommands in

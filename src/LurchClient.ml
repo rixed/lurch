@@ -348,6 +348,26 @@ let update =
       (* Reload the run to see the confirmation: *)
       return ~c:[Vdom.Cmd.echo (`GetRun (top_run, [||]))]
         State.{ st with waiting = false }
+  | `SetVariable (run_id, msg_dom_id, top_run) ->
+      let open Js_browser in
+      (match Document.get_element_by_id document msg_dom_id with
+      | Some elmt ->
+          let value = Element.value elmt in
+          let params = [ "run", string_of_int run_id ; "value", value ] in
+          let ajax =
+            Http_get {
+              url = lurch_url "set_variable" params ;
+              callback = fun r -> `SetVariableDone (r, top_run) } in
+          return ~c:[ajax] State.{ st with waiting = true ; refresh_msg = None }
+      | _ ->
+          log "Cannot find variable value" ;
+          return st)
+  | `SetVariableDone (Error e, _) ->
+      return State.{ st with location = ShowError e ; waiting = false }
+  | `SetVariableDone (Ok res, top_run) ->
+      (* Reload the run to see the value: *)
+      return ~c:[Vdom.Cmd.echo (`GetRun (top_run, [||]))]
+        State.{ st with waiting = false }
 
 let cmd_handler ctx = function
   | Initialize callback ->
