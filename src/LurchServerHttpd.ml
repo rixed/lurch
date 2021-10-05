@@ -88,8 +88,8 @@ let start_program name =
   Db.Run.insert program.Api.Program.command.id |>
   get_run
 
-let wait_confirm run_id msg =
-  Db.WaitConfirmed.insert run_id msg
+let approve run_id msg =
+  Db.Approval.insert run_id msg
 
 let serve () =
   let debug_to_stderr = true in
@@ -134,10 +134,10 @@ let serve () =
     | "start_program" ->
         let name = get_param "program" identity in
         start_program name
-    | "wait_confirm" ->
+    | "approve" ->
         let run_id = get_param "run" int_of_string
         and msg = get_param "message" identity in
-        wait_confirm run_id msg
+        approve run_id msg
     | _ ->
         unknown ()) ;
     Cgi.header ~status:200 () ;

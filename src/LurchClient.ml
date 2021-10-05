@@ -331,18 +331,17 @@ let update =
   | `ConfirmCommand (run_id, msg_dom_id, top_run) ->
       let open Js_browser in
       (match Document.get_element_by_id document msg_dom_id with
-      | Some msg ->
-          let msg = Element.value msg in
+      | Some elmt ->
+          let msg = Element.value elmt in
           let params = [ "run", string_of_int run_id ; "message", msg ] in
           let ajax =
             Http_get {
-              url = lurch_url "wait_confirm" params ;
+              url = lurch_url "approve" params ;
               callback = fun r -> `ConfirmedCommand (r, top_run) } in
           return ~c:[ajax] State.{ st with waiting = true ; refresh_msg = None }
       | _ ->
-          return State.{ st with
-            location = ShowError "Cannot find confirmation message value" ;
-            waiting = false })
+          log "Cannot find confirmation message value" ;
+          return st)
   | `ConfirmedCommand (Error e, _) ->
       return State.{ st with location = ShowError e ; waiting = false }
   | `ConfirmedCommand (Ok res, top_run) ->

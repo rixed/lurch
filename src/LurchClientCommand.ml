@@ -125,7 +125,7 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
           p [ text "Wait for a manual approval before running the given \
                     subcommand. If no confirmation is received before the optional \
                     timeout expires then either the execution proceed or the
-                    program fails, depending on the auto-success flag." ];
+                    program fails, depending on the auto-success flag." ] ;
           div [
             p [ text "Text for user:" ] ;
             textarea ?id:(id "comment") ~editable [ text comment ] ] ;

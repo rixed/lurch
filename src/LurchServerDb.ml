@@ -752,7 +752,7 @@ struct
       Run.get (int_of_string (res#getvalue i 0)))
 end
 
-module WaitConfirmed =
+module Approval =
 struct
   let insert run_id msg =
     let cnx = get_cnx () in

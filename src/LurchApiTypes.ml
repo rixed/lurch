@@ -100,11 +100,11 @@ struct
     | Docker { image } ->
         "Docker(image:"^ image ^")"
     | Exec { pathname ; args ; env ; timeout } ->
-        "Exec(pathname:"^ pathname ^", args:…, env:…,, timeout:"^
+        "Exec(pathname:"^ pathname ^", args:…, env:…, timeout:"^
         or_null string_of_float timeout ^")"
     | Approve { subcommand ; timeout ; comment ; autosuccess } ->
         "Approve(subcommand:"^ to_string subcommand ^", timeout:"^
-        or_null string_of_float timeout ^ "commend:"^ comment ^", autosuccess:"^
+        or_null string_of_float timeout ^ ",comment:"^ comment ^", autosuccess:"^
         string_of_bool autosuccess ^")"
     | Sequence { subcommands } ->
         "Sequence("^ join to_string subcommands ^")"

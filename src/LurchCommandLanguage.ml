@@ -142,9 +142,9 @@ let command_of_string str =
         and env = of_string_lst string_of_str env |> Array.of_list
         and timeout = or_null float_of_sym timeout in
         Exec { pathname ; args ; env ; timeout }
-    | Lst [ Sym "approve" ; Sym timeout ; Sym comment ; Sym autosuccess ; s ] ->
+    | Lst [ Sym "approve" ; Sym timeout ; Str comment ; Sym autosuccess ; s ] ->
         let timeout =
-          if timeout = "" then None else Some (float_of_string timeout) in
+          if timeout = "null" then None else Some (float_of_string timeout) in
         Approve { subcommand = command_of_sexpr s ; timeout ; comment ;
                   autosuccess = sql_bool_of_string autosuccess }
     | Lst (Sym "sequence" :: cmds) ->
@@ -192,9 +192,9 @@ let string_of_command ?max_depth cmd =
               or_null sym_of_float timeout ]
     | Approve { subcommand ; timeout ; comment ; autosuccess } ->
         Lst [ Sym "approve" ;
-              Sym (match timeout with None -> ""
+              Sym (match timeout with None -> "null"
                                     | Some t -> string_of_float t) ;
-              Sym comment ;
+              Str comment ;
               Sym (sql_string_of_bool autosuccess) ;
               sexpr_of_command ?max_depth subcommand ]
     | Sequence { subcommands } ->
