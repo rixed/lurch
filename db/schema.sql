@@ -247,7 +247,7 @@ create view list_past_runs as
     program p
     join top_level_runs r on p.command = r.command
   where
-    p.deleted <= p.created;
+    p.deleted <= p.created; -- not deleted
 
 -- The list of program, with info about their last run:
 -- Corresponds to API type ListPrograms
@@ -267,7 +267,7 @@ create view list_programs as
     left outer join run r on r.command = lr.command and
                              r.created = lr.last_created
   where
-    p.deleted <= p.created
+    p.deleted <= p.created -- not deleted
   group by p.name, r.id, r.started, r.stopped, r.exit_code;
 
 -- All terminal commands that have not been started yet:

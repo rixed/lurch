@@ -290,7 +290,7 @@ struct
          left outer join docker_instance d on d.run = r.id \
          where r.id = $1" in
     if res#ntuples <> 1 then
-      failwith ("Cannot find a unique run with id "^ string_of_int id ) ;
+      failwith ("Cannot find a unique run with id "^ string_of_int id) ;
     log.debug "Got tuple %a" (Array.print String.print) (res#get_tuple 0) ;
     let getv conv j = conv (res#getvalue 0 j) in
     let getn conv j = if res#getisnull 0 j then None else Some (getv conv j) in
