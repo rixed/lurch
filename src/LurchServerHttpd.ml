@@ -93,7 +93,7 @@ let wait_confirm run_id msg =
 
 let serve () =
   let debug_to_stderr = true in
-  let debug_to_file = Some "/tmp/lurch.log" in
+  let debug_to_file = Some (!log_dir ^"/httpd.log") in
   let params = Cgi.parse_args () in
   let get_param n = get_param params n
   and get_opt_param n = get_opt_param params n in

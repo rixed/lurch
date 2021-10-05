@@ -2,6 +2,8 @@ open Batteries
 
 let user = ref (try Sys.getenv "USER" with Not_found -> "JohnDoe")
 
+let log_dir = ref "/tmp/lurch"
+
 (* System *)
 
 let int_of_fd : Legacy.Unix.file_descr -> int = fun fd -> Obj.magic fd

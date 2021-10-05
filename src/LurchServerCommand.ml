@@ -209,7 +209,7 @@ let start_process pathname ~args ?(env=[||]) ?timeout run =
    * in use: *)
   let isolation_run = lookup_isolation run in
   let log_file =
-    "/tmp/lurch/monitor_run."^ string_of_int run.Api.Run.id ^".log" in
+    !log_dir ^"/monitor_run."^ string_of_int run.Api.Run.id ^".log" in
   Files.mkdir_all ~is_file:true log_file ;
   Db.close () ; (* Before forking, will be reopened as needed *)
   let pid = clean_fork () in
@@ -281,7 +281,8 @@ let start_terminal run =
            string_of_int run.id |] in
       let env =
         [| "BUSYBOX="^ !Chroot.busybox ;
-           "LURCH_CHROOTS="^ !Chroot.chroot_prefix |] in
+           "LURCH_CHROOTS="^ !Chroot.chroot_prefix ;
+           "LURCH_LOG_DIR="^ !log_dir |] in
       start_process "/bin/sh" ~args ~env ~timeout:!command_timeout run
   (* Those are not terminals: *)
   | Isolate _

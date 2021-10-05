@@ -34,8 +34,14 @@ let chroot_prefix =
 let busybox =
   let env = Term.env_info "BUSYBOX" in
   let i = Arg.info ~env ~doc:"Where to find statically linked busybox."
-                   ~docv:"PATH" [ "busybox"] in
+                   ~docv:"PATH" [ "busybox" ] in
   Arg.(value (opt string !LurchServerChroot.busybox i))
+
+let log_dir =
+  let env = Term.env_info "LURCH_LOG_DIR" in
+  let i = Arg.info ~env ~doc:"Where to create log files." ~docv:"PATH"
+                   [ "log-dir" ] in
+  Arg.(value (opt string !LurchServerLib.log_dir i))
 
 let conninfo =
   let env = Term.env_info "LURCH_DB" in
@@ -52,7 +58,8 @@ let program =
   let i = Arg.info ~doc:"Program name." [] in
   Arg.(required (pos 0 (some string) None i))
 
-let cgi dbg conninfo () =
+let cgi dbg conninfo log_dir () =
+  LurchServerLib.log_dir := log_dir ;
   Printexc.record_backtrace true ;
   init_log dbg false ;
   Db.init conninfo ;
@@ -67,7 +74,7 @@ let start dbg conninfo program_name () =
   log.info "Program %s started as run #%d." program_name run_id ;
   Db.close ()
 
-let step dbg conninfo chroot_prefix busybox () =
+let step dbg conninfo chroot_prefix busybox log_dir () =
   LurchServerChroot.chroot_prefix := chroot_prefix ;
   LurchServerChroot.busybox := busybox ;
   init_log dbg true ;
@@ -75,9 +82,10 @@ let step dbg conninfo chroot_prefix busybox () =
   Command.step () ;
   Db.close ()
 
-let exec dbg conninfo run_id chroot_prefix busybox () =
+let exec dbg conninfo run_id chroot_prefix busybox log_dir () =
   LurchServerChroot.chroot_prefix := chroot_prefix ;
   LurchServerChroot.busybox := busybox ;
+  LurchServerLib.log_dir := log_dir ;
   init_log ~with_time:false dbg true ;
   Db.init conninfo ;
   log.debug "Executing run#%d" run_id ;
@@ -94,7 +102,7 @@ let default =
 (* The CGI handler *)
 let cgi =
   Term.(
-    (const cgi $ dbg $ conninfo),
+    (const cgi $ dbg $ conninfo $ log_dir),
     info ~doc:"Answer an http query." "cgi")
 
 (* Start a program, handy in cron tabs *)
@@ -106,13 +114,13 @@ let start =
 (* Perform a single step of any pending run: *)
 let step =
   Term.(
-    (const step $ dbg $ conninfo $ chroot_prefix $ busybox),
+    (const step $ dbg $ conninfo $ chroot_prefix $ busybox $ log_dir),
     info ~doc:"Perform the next step of execution." "step")
 
 (* Allows to execute internal commands as a separate process: *)
 let exec =
   Term.(
-    (const exec $ dbg $ conninfo $ run_id $ chroot_prefix $ busybox),
+    (const exec $ dbg $ conninfo $ run_id $ chroot_prefix $ busybox $ log_dir),
     info ~doc:"execute given run id and quit. \
                Not supposed to be called directly."
          "_exec")
