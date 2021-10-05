@@ -359,6 +359,9 @@ let rec view run =
     array_find (fun r ->
       r.Api.Run.command.id = subcmd_id
     ) run.Api.Run.children in
+  (* This [view] function draws the commands when they are running.
+   * If they are not running then just draw the read-only version of
+   * the command editor instead: *)
   let view_subcommand subcmd =
     match find_subrun subcmd.Api.Command.id with
     | exception Not_found ->

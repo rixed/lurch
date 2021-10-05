@@ -211,7 +211,7 @@ create table docker_instance (
 
 -- Where to store variables values:
 create table let_value (
-  run int not null, -- must be a command_let
+  run int not null, -- must be that of a command_let
   value text not null,
 
   foreign key (run) references run (id) on delete cascade,
@@ -357,9 +357,8 @@ create view list_running_ifs as
   left outer join run r_alt on (r_alt.parent_run = r.id and r_alt.command = c.alternative)
   where r.stopped is null;
 
--- List all pending command_approve commands, possibly with the corresponding
--- confirmation message
-create view list_pending_approval as
+-- List all pending command_approve commands
+create view list_pending_approvals as
   select
     r.id as run,
     c.time,

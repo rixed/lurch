@@ -345,13 +345,13 @@ let step_conditionals () =
               (match subcommand_run with
               | None ->
                   log.info "New run for subcommand %d" subcommand ;
-                  let sub_run =
+                  let subrun =
                     Db.Run.insert ~top_run:if_.run.top_run ~parent_run:if_.run.id
                                   subcommand in
-                  let line = "Starting subcommand as #"^ string_of_int sub_run in
+                  let line = "Starting subcommand as #"^ string_of_int subrun in
                   Db.LogLine.insert if_.run.id 1 line
-              | Some sub_run ->
-                  (match sub_run.Api.Run.exit_code with
+              | Some subrun ->
+                  (match subrun.Api.Run.exit_code with
                   | None ->
                       log.debug "Waiting for the end of the subcommand"
                   | Some exit_code ->
@@ -493,13 +493,13 @@ let step_isolation () =
         | _ -> assert false in
       match isolate.Api.Run.children with
       | [| |] ->
-        (* No builder yet: start one *)
-        let builder_run = Db.Run.insert ~top_run:isolate.top_run
-                                        ~parent_run:isolate.id
-                                        builder_cmd.Api.Command.id |>
-                          Db.Run.get in
-        start_terminal builder_run ;
-        Db.Run.start isolate.id
+          (* No builder yet: start one *)
+          let builder_run = Db.Run.insert ~top_run:isolate.top_run
+                                          ~parent_run:isolate.id
+                                          builder_cmd.Api.Command.id |>
+                            Db.Run.get in
+          start_terminal builder_run ;
+          Db.Run.start isolate.id
       | [| builder |] ->
           (match builder.Api.Run.exit_code with
           | None ->

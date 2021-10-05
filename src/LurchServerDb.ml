@@ -821,7 +821,7 @@ struct
     let res =
       cnx#exec ~expect:[Tuples_ok]
         "select run, extract(epoch from time), autosuccess \
-        from list_pending_approval order by time" in
+        from list_pending_approvals order by time" in
     log.debug "%d approvals are waiting." res#ntuples ;
     Enum.init res#ntuples (fun i ->
       log.debug "Got tuple %a" (Array.print String.print) (res #get_tuple i) ;
