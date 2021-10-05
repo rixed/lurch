@@ -388,7 +388,9 @@ let rec view run =
                 [ text "Instance is " ; config_txt instance ; text "." ]) ]
     | Exec { pathname ; args ; env ; timeout } ->
         let txt_of_strings a =
-          List.map config_txt (Array.to_list a) in
+          List.map (fun s ->
+            config_txt (s ^" ")
+          ) (Array.to_list a) in
         let args = txt_of_strings args
         and env = txt_of_strings env in
         div [

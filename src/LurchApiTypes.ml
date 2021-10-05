@@ -148,7 +148,9 @@ struct
        * the same as top_run) *)
       run : int ;
       command : int ;
-      fd : int ; time : float ; line : string }
+      fd : int ;
+      time : float ;
+      line : string }
     [@@deriving json]
 
   type ts = t array

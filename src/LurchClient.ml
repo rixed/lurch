@@ -80,6 +80,7 @@ let oldest_top_run = function
 let update =
   (* How many log lines to ask in one batch: *)
   let logs_limit = 500 in
+  let debug = false in
   fun st -> function
   | `Test ->
       return State.{ st with location = Test }
@@ -107,7 +108,7 @@ let update =
   | `GotPastProgramRuns (Error e) ->
       return State.{ st with location = ShowError e ; waiting = false }
   | `GotPastProgramRuns (Ok res) ->
-      log_js (Js_browser.JSON.parse res) ;
+      if debug then log_js (Js_browser.JSON.parse res) ;
       let res = Api.ListPastRuns.array_of_json_string res in
       let res =
         match st.location with
@@ -125,7 +126,7 @@ let update =
   | `GotProgramsAndRun (Error e) ->
       return State.{ st with location = ShowError e ; waiting = false }
   | `GotProgramsAndRun (Ok res) ->
-      log_js (Js_browser.JSON.parse res) ;
+      if debug then log_js (Js_browser.JSON.parse res) ;
       let res = Api.ListPrograms.array_of_json_string res in
       return State.{ st with location = ListProgramsAndRun res ;
                              waiting = false }
@@ -143,7 +144,7 @@ let update =
   | `GotProgram (Error e) ->
       return State.{ st with location = ShowError e ; waiting = false }
   | `GotProgram (Ok res) ->
-      log_js (Js_browser.JSON.parse res) ;
+      if debug then log_js (Js_browser.JSON.parse res) ;
       let res = Api.Program.of_json_string res in
       let program = Program.of_api res in
       return ~c:[Vdom.Cmd.echo (`GetLastRuns res.name) ]
@@ -166,7 +167,7 @@ let update =
   | `GotLastRuns (Error e, _) ->
       return State.{ st with location = ShowError e ; waiting = false }
   | `GotLastRuns (Ok res, name) ->
-      log_js (Js_browser.JSON.parse res) ;
+      if debug then log_js (Js_browser.JSON.parse res) ;
       let res = Api.ListPastRuns.array_of_json_string res in
       (match st.State.location with
       | ShowProgram { program ; editable ; last_runs }
@@ -236,7 +237,7 @@ let update =
   | `StartedProgram (Error e) ->
       return State.{ st with location = ShowError e ; waiting = false }
   | `StartedProgram (Ok res) ->
-      log_js (Js_browser.JSON.parse res) ;
+      if debug then log_js (Js_browser.JSON.parse res) ;
       let run = Api.Run.of_json_string res in
           return ~c:[Vdom.Cmd.echo (`GetMoreLogs run)]
             State.{ st with location = ShowRun { run ; more_logs_expected = true } ;
@@ -250,7 +251,7 @@ let update =
   | `GotRun (Error e, _) ->
       return State.{ st with location = ShowError e ; waiting = false }
   | `GotRun (Ok res, logs) ->
-      log_js (Js_browser.JSON.parse res) ;
+      if debug then log_js (Js_browser.JSON.parse res) ;
       let run = { (Api.Run.of_json_string res) with logs } in
       return ~c:[Vdom.Cmd.echo (`GetMoreLogs run)]
         State.{ st with location = ShowRun { run ; more_logs_expected = true } }
@@ -278,7 +279,7 @@ let update =
   | `GetMoreLogs run ->
       let offset = Array.length run.Api.Run.logs
       and limit = logs_limit in
-      (*log ("GetMoreLogs: currently have "^ string_of_int offset ^" lines") ;*)
+      if debug then log ("GetMoreLogs: currently have "^ string_of_int offset ^" lines") ;
       let ajax =
         let params = [ "run", string_of_int run.id ;
                        "offset", string_of_int offset ;
@@ -292,7 +293,7 @@ let update =
   | `GotMoreLogs (Ok res, top_run) ->
       let res = Api.LogLine.array_of_json_string res in
       let len = Array.length res in
-      (*log ("Got "^ string_of_int len ^" log lines!") ;*)
+      if debug then log ("Got "^ string_of_int len ^" log lines!") ;
       (match st.State.location with
       | ShowRun { run } when run.Api.Run.id = top_run.Api.Run.id ->
           let run = { run with logs = Array.append run.logs res } in
