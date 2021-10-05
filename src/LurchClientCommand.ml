@@ -396,7 +396,8 @@ let rec view run =
         div [
           p (
             [ text "Execute program: " ; config_txt pathname ;
-              text " with arguments: " ] @ args @
+              text (if args = [] then " with no arguments"
+                                 else " with arguments: ") ] @ args @
               (if env = [] then [] else (text " in environment: " :: env))
           ) ;
           match timeout with
