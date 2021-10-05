@@ -30,7 +30,9 @@ let string_of_location = function
 type 'msg state =
   { (* Define the main location. *)
     location : location ;
-    (* Indicates whether we are waiting for an ajax query: *)
+    (* Indicates whether we are waiting for an ajax query which result may
+     * change current location at user's request; Thus, navigation away from
+     * the current page should be temporarily prevented. *)
     waiting : bool ;
     (* Recent message that should be resent to refresh the page. That's usually
      * the last `GetFoo. *)

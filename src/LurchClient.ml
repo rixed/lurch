@@ -12,21 +12,21 @@ module Views = LurchClientViews
  * View
  *)
 
-let view_of_location =
+let view_of_location waiting =
   let open State in
   function
   | ShowError e ->
       div [ p ~a:[class_ "error"] [ text e ] ]
   | ListPastRuns lst ->
-      Views.list_past_runs lst
+      Views.list_past_runs ~waiting lst
   | ListProgramsAndRun lst ->
-      Views.list_programs_and_run lst
+      Views.list_programs_and_run ~waiting lst
   | ShowProgram { program ; editable ; last_runs } ->
-      Views.program_editor program ~editable last_runs
+      Views.program_editor ~waiting ~editable program last_runs
   | ConfirmDeleteProgram { program } ->
       Views.program_confirm_deletion program
   | ShowRun { run ; more_logs_expected } ->
-      Views.show_run run more_logs_expected
+      Views.show_run ~waiting run more_logs_expected
   | Test ->
       Views.test
 
@@ -35,7 +35,7 @@ let view st =
     Views.header st ;
     Views.menu st ;
     Views.spinner st ;
-    view_of_location st.location ]
+    view_of_location st.waiting st.location ]
 
 (*
  * Update
@@ -238,16 +238,9 @@ let update =
   | `StartedProgram (Ok res) ->
       log_js (Js_browser.JSON.parse res) ;
       let run = Api.Run.of_json_string res in
-      (* Move to ShowRun if this program is still on display: *)
-      (match st.State.location with
-      | State.ShowProgram { program = Program.{ saved = Some p ; _ } ; _ }
-        when run.Api.Run.program = Some p.Api.Program.name ->
           return ~c:[Vdom.Cmd.echo (`GetMoreLogs run)]
             State.{ st with location = ShowRun { run ; more_logs_expected = true } ;
                             waiting = false }
-      | _ ->
-          log "StartedProgram while not displaying that program, ignoring" ;
-          return st)
   | `GetRun (run_id, logs) ->
       let ajax =
         Http_get { url = lurch_url "get_run" [ "id", string_of_int run_id ] ;
@@ -292,7 +285,8 @@ let update =
                        "limit", string_of_int limit ] in
         Http_get { url = lurch_url "get_logs" params ;
                    callback = fun r -> `GotMoreLogs (r, run) } in
-      return ~c:[ajax] State.{ st with waiting = true }
+      (* Since those are happening regularly, allow user to navigate away: *)
+      return ~c:[ajax] State.{ st with waiting = false }
   | `GotMoreLogs (Error e, _) ->
       return State.{ st with location = ShowError e ; waiting = false }
   | `GotMoreLogs (Ok res, top_run) ->

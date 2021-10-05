@@ -12,6 +12,9 @@ let log str =
 let log_js obj =
   Js_browser.(Console.log console obj)
 
+let onclick_if_allowed waiting msg =
+  if not waiting then [onclick (fun _ -> msg)] else []
+
 let name_ x = Property ("name", String x)
 
 let checked_ = attr "checked" ""

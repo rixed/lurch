@@ -17,11 +17,11 @@ let header _st =
       text " - " ;
       a_ "https://github.com/rixed/lurch" "source" ]
 
-let menu _st =
+let menu st =
   ul ~a:[ class_ "menu" ] [
-    li ~a:[onclick (fun _ -> `GetProgramsAndRun)]
+    li ~a:(onclick_if_allowed st.State.waiting `GetProgramsAndRun)
       [ text "Programs" ] ;
-    li ~a:[onclick (fun _ -> `GetPastProgramRuns)]
+    li ~a:(onclick_if_allowed st.State.waiting `GetPastProgramRuns)
       [ text "Runs"] ]
 
 let spinner st =
@@ -50,7 +50,7 @@ let bgcolor_of = function
   | "" -> no_attr
   | c -> attr "bgcolor" c
 
-let list_past_runs runs =
+let list_past_runs ~waiting runs =
   div [
     let columns =
       [ "run#" ; "program" ; "started" ; "stopped" ;
@@ -64,67 +64,69 @@ let list_past_runs runs =
     let len = Array.length runs in
     table ~header ~footer (List.init len (fun i ->
       let r = runs.(len - i - 1) in
-      let goto_prog = onclick (fun _ -> `GetProgram r.Api.ListPastRuns.name)
-      and goto_run = onclick (fun _ -> `GetRun (r.top_run, [||])) in
+      let goto_prog = onclick_if_allowed waiting (`GetProgram r.Api.ListPastRuns.name)
+      and goto_run = onclick_if_allowed waiting(`GetRun (r.top_run, [||])) in
       tr (
-        td ~a:[ class_ "click" ; goto_run ]
+        td ~a:(class_ "click" :: goto_run)
           [ text ("#"^ string_of_int r.top_run) ] ::
-        td ~a:[ class_ "click" ; goto_prog ]
+        td ~a:(class_ "click" :: goto_prog)
           [ text r.name ] ::
         (if r.started = None then
-          [ td ~a:[ class_ "click" ; goto_run ; colspan 2 ]
+          [ td ~a:(class_ "click" :: colspan 2 :: goto_run)
               [ text "waiting" ] ]
         else
-          [ td ~a:[ class_ "click time" ; goto_run ]
+          [ td ~a:(class_ "click time" :: goto_run)
               [ text (date_of_ts (option_get r.started)) ] ;
-            td ~a:[ class_ "click time" ; goto_run ]
+            td ~a:(class_ "click time" :: goto_run)
               [ text (date_of_tsn (r.stopped) |? "running") ] ]) @
         [
-          td ~a:[ class_ "click" ; goto_run ] [ stats r.stats_self r.stats_desc ];
+          td ~a:(class_ "click" :: goto_run) [ stats r.stats_self r.stats_desc ];
           let outcome, color = outcome r.exit_code in
           let bgcolor = bgcolor_of color in
-          td ~a:[ class_ "click" ; goto_run ; bgcolor]
+          td ~a:(class_ "click" :: bgcolor :: goto_run)
             [ text outcome ] ]))) ]
 
-let list_programs_and_run programs =
+let list_programs_and_run ~waiting programs =
   let header =
-    simple_table_header [ "program" ; "last start" ; "last stop" ; "outcome" ] in
+    simple_table_header [ "program" ; "last start" ; "last stop" ; "outcome" ; "action" ] in
   let footer =
     [ tr [
-        td ~a:[ colspan 4] [
+        td ~a:[ colspan 5] [
           button "create a new program" `CreateProgram ] ] ] in
   let len = Array.length programs in
   table ~a:[ class_ "programs" ] ~header ~footer (List.init len (fun i ->
     let p = programs.(len - i -1) in
     tr (
-      td ~a:[ class_ "click" ;
-              onclick (fun _ -> `GetProgram p.Api.ListPrograms.name) ]
+      td ~a:(class_ "click" ::
+            onclick_if_allowed waiting (`GetProgram p.Api.ListPrograms.name))
         [ text p.name ] ::
-      match p.last_run with
+      (match p.last_run with
       | None ->
           [ td ~a:[ colspan 3 ] [ text "not yet run" ] ]
       | Some last_run ->
-          let goto_run = onclick (fun _ -> `GetRun (last_run, [||])) in
+          let goto_run = onclick_if_allowed waiting (`GetRun (last_run, [||])) in
           (match p.last_start with
           | None ->
-              [ td ~a:[ class_ "click" ; goto_run ; colspan 3 ]
+              [ td ~a:(class_ "click" :: colspan 3 :: goto_run)
                   [ text "waiting" ] ]
           | Some last_start ->
-              td ~a:[ class_ "click time" ; goto_run ]
+              td ~a:(class_ "click time" :: goto_run)
                 [ text (date_of_ts last_start) ] ::
               match p.last_stop with
               | None ->
-                  [ td ~a:[ class_ "click" ; goto_run ; colspan 2 ]
+                  [ td ~a:(class_ "click" :: colspan 2 :: goto_run)
                       [ text "running" ] ]
               | Some last_stop ->
-                  [ td ~a:[ class_ "click time" ; goto_run ]
+                  [ td ~a:(class_ "click time" :: goto_run)
                       [ text (date_of_ts last_stop) ] ;
                     let txt, color = outcome p.last_exit_code in
                     let bgcolor = bgcolor_of color in
-                    td ~a:[ class_ "click" ; goto_run ; bgcolor ]
-                      [ text txt ] ]))))
+                    td ~a:(class_ "click" :: bgcolor :: goto_run)
+                      [ text txt ] ])) @
+      [ td ~a:(class_ "click" :: onclick_if_allowed waiting (`StartProgram p.name))
+          [ text "run" ] ])))
 
-let program_editor program ~editable last_runs =
+let program_editor ~waiting ~editable program last_runs =
   let saved_name =
     match program.Program.saved with
     | None -> ""
@@ -195,8 +197,8 @@ let program_editor program ~editable last_runs =
       let len = Array.length last_runs in
       table ~header ~footer (List.init len (fun i ->
         let r = last_runs.(len - i - 1) in
-        tr ~a:[ class_ "click" ;
-                onclick (fun _ -> `GetRun (r.top_run, [||])) ] (
+        tr ~a:(class_ "click" ::
+               onclick_if_allowed waiting (`GetRun (r.top_run, [||]))) (
           if r.started = None then
             [ td ~a:[ colspan 2 ] [ text "waiting" ] ]
           else
@@ -221,21 +223,21 @@ let info label def =
     txt_span ~a:[ class_ "info-label" ] label ;
     text ": " ; def ]
 
-let show_run run more_logs_expected =
+let show_run ~waiting run more_logs_expected =
   div [
     h2 [ text ("Details of Run #"^ string_of_int run.Api.Run.id) ] ;
     div [
       (match run.program with
       | Some name ->
           info "For Program"
-            (txt_span ~a:[ class_ "click" ;
-                           onclick (fun _ -> `GetProgram name) ] name)
+            (txt_span ~a:(class_ "click" ::
+                          onclick_if_allowed waiting (`GetProgram name)) name)
       | _ -> no_elt) ;
       (if run.top_run <> run.id then
         let label = "run #" ^ string_of_int run.top_run in
         info "Part of "
-          (txt_span ~a:[ class_ "click" ;
-                         onclick (fun _ -> `GetRun (run.top_run, [||]))] label)
+          (txt_span ~a:(class_ "click" ::
+                        onclick_if_allowed waiting (`GetRun (run.top_run, [||]))) label)
       else no_elt) ;
       Command.view run ;
       match run.stopped, run.program with
@@ -264,8 +266,8 @@ let show_run run more_logs_expected =
       let l = run.logs.(i) in
       let acc =
         tr [
-          td ~a:[ class_ "click" ;
-                  onclick (fun _ -> `GetRun (l.run, [||])) ]
+          td ~a:(class_ "click" ::
+                 onclick_if_allowed waiting (`GetRun (l.run, [||])))
             (* Apply the "click" class on the text rather than the td to
              * decorate that text as a link: *)
             [ txt_span ~a:[ class_ "click" ] ("#"^ string_of_int l.run) ] ;
