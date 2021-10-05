@@ -28,7 +28,7 @@ let dbg =
 let chroot_prefix =
   let env = Term.env_info "LURCH_CHROOTS" in
   let i = Arg.info ~env ~doc:"Where to create chroots." ~docv:"PATH"
-                   [ "chroots "] in
+                   [ "chroots" ] in
   Arg.(value (opt string !LurchServerChroot.chroot_prefix i))
 
 let busybox =
