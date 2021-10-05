@@ -223,7 +223,7 @@ let info label def =
     txt_span ~a:[ class_ "info-label" ] label ;
     text ": " ; def ]
 
-let show_run ~waiting run more_logs_expected =
+let show_run ~waiting run selected_logs more_logs_expected =
   div [
     h2 [ text ("Details of Run #"^ string_of_int run.Api.Run.id) ] ;
     div [
@@ -246,6 +246,27 @@ let show_run ~waiting run more_logs_expected =
       | _ ->
           button "Cancel" (`CancelRun run.id) ] ;
     h2 [ text "Logs" ] ;
+    (* TODO: also have a date selector, and a choice to display absolute or
+     * relative times: *)
+    div [
+      let fds =
+        Array.fold_left (fun l line ->
+          let fd = line.Api.LogLine.fd in
+          if List.mem fd l then l else fd :: l
+        ) [] run.logs |>
+        List.map filename_of_fd in
+      let selection = List.map filename_of_fd selected_logs in
+      p [ text "show:" ;
+          checkboxes ~action:(fun fn checked ->
+            let fd = fd_of_filename fn in
+            let selected_logs =
+              if checked && not (List.mem fd selected_logs) then
+                fd :: selected_logs else
+              if not checked && List.mem fd selected_logs then
+                List.filter ((<>) fd) selected_logs else
+              selected_logs (* Should not happen *) in
+            `SetLogsFds (selected_logs, run)
+          ) fds selection ] ] ;
     let header =
       simple_table_header [ "run" ; "file" ; "time" ; "text" ] in
     let footer =
@@ -265,15 +286,17 @@ let show_run ~waiting run more_logs_expected =
       if i < 0 then acc else
       let l = run.logs.(i) in
       let acc =
-        tr [
-          td ~a:(class_ "click" ::
-                 onclick_if_allowed waiting (`GetRun (l.run, [||])))
-            (* Apply the "click" class on the text rather than the td to
-             * decorate that text as a link: *)
-            [ txt_span ~a:[ class_ "click" ] ("#"^ string_of_int l.run) ] ;
-          td [ text (filename_of_fd l.fd) ] ;
-          td ~a:[ class_ "time" ] [ text (date_of_ts l.time) ] ;
-          td ~a:[ class_ "logline" ] (dom_of_ansi l.line) ] :: acc in
+        if List.mem l.fd selected_logs then
+          tr [
+            td ~a:(class_ "click" ::
+                   onclick_if_allowed waiting (`GetRun (l.run, [||])))
+              (* Apply the "click" class on the text rather than the td to
+               * decorate that text as a link: *)
+              [ txt_span ~a:[ class_ "click" ] ("#"^ string_of_int l.run) ] ;
+            td [ text (filename_of_fd l.fd) ] ;
+            td ~a:[ class_ "time" ] [ text (date_of_ts l.time) ] ;
+            td ~a:[ class_ "logline" ] (dom_of_ansi l.line) ] :: acc
+        else acc in
       trs acc (i - 1) in
     table ~a:[ class_ "logs" ] ~header ~footer (trs [ last_tr ] (len - 1)) ]
 

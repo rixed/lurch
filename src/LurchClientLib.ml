@@ -66,6 +66,12 @@ let filename_of_fd = function
   | 2 -> "err"
   | n -> string_of_int n
 
+let fd_of_filename = function
+  | "in" -> 0
+  | "out" -> 1
+  | "err" -> 2
+  | s -> int_of_string s
+
 let class_of_status = function
   | Api.ExitStatus.Completed -> "success"
   | Failed _ | CouldNotStart | TimedOut -> "failure"
@@ -227,7 +233,7 @@ let checkboxes ~action ?key ?a options selection =
     (List.map (fun opt ->
         let selected = List.mem opt selection in
         label [
-          (let a = [type_ "checkbox"; value opt; onchange action] in
+          (let a = [type_ "checkbox"; value opt; onchange_checked (action opt)] in
            let a = if selected then checked_ :: a else a in
            input ~a []) ;
           text opt ]

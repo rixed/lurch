@@ -12,9 +12,10 @@ module Views = LurchClientViews
  * View
  *)
 
-let view_of_location waiting =
+let view_of_location st =
   let open State in
-  function
+  let waiting = st.State.waiting in
+  match st.location with
   | ShowError e ->
       div [ p ~a:[class_ "error"] [ text e ] ]
   | ListPastRuns lst ->
@@ -26,7 +27,7 @@ let view_of_location waiting =
   | ConfirmDeleteProgram { program } ->
       Views.program_confirm_deletion program
   | ShowRun { run ; more_logs_expected } ->
-      Views.show_run ~waiting run more_logs_expected
+      Views.show_run ~waiting run st.selected_logs more_logs_expected
   | Test ->
       Views.test
 
@@ -35,7 +36,7 @@ let view st =
     Views.header st ;
     Views.menu st ;
     Views.spinner st ;
-    view_of_location st.waiting st.location ]
+    view_of_location st ]
 
 (*
  * Update
@@ -148,7 +149,7 @@ let update =
       let res = Api.Program.of_json_string res in
       let program = Program.of_api res in
       return ~c:[Vdom.Cmd.echo (`GetLastRuns res.name) ]
-        State.{
+        State.{ st with
           location = ShowProgram { program ; editable = false ;
                                    last_runs = [||] } ;
           waiting = false ;
@@ -193,14 +194,15 @@ let update =
               let location = State.ShowProgram { program ; editable ; last_runs } in
               return State.{ st with location ; waiting = false }
           | _ ->
-              return State.{
+              return State.{ st with
                 location = ShowError "Received a RefresProgram message while \
                                       not in ShowProgram view!?" ;
                 waiting = false ; refresh_msg = None })
       | _ ->
-          return State.{
+          return State.{ st with
             location = ShowError "Cannot find program values while refreshing!?" ;
-            waiting = false ; refresh_msg = None })
+            waiting = false ;
+            refresh_msg = None })
   | `SaveProgram prev_name -> (* prev_name is "" for new programs *)
       (match Js_browser.Document.get_element_by_id document "program_name",
              LurchClientCommand.command_of_form document "program_command" with
@@ -216,9 +218,10 @@ let update =
               callback = fun r -> `GotProgram r } in
           return ~c:[ajax] State.{ st with waiting = true ; refresh_msg = None }
       | _ ->
-          return State.{
+          return State.{ st with
             location = ShowError "Cannot find program values" ;
-            waiting = false ; refresh_msg = None })
+            waiting = false ;
+            refresh_msg = None })
   | `DeleteProgram name ->
       let ajax =
         Http_del { url = lurch_url "del_program" [ "program", name ] ;
@@ -309,13 +312,20 @@ let update =
               [], false
           in
           return ~c
-            State.{ location = ShowRun { run ; more_logs_expected } ;
-                     waiting = false ;
-                     refresh_msg = Some refresh_msg }
+            State.{ st with
+              location = ShowRun { run ; more_logs_expected } ;
+              waiting = false ;
+              refresh_msg = Some refresh_msg }
       | ShowRun { run ; _ } ->
           (* FIXME: why is it an error? Why not simply get this run's logs? *)
           let err_msg = string_of_int run.id ^" <> "^ string_of_int top_run.id in
           return State.{ st with location = ShowError err_msg ; waiting = false }
+      | _ ->
+          return st)
+  | `SetLogsFds (selected, run) ->
+      (match st.State.location with
+      | ShowRun { run } when run.Api.Run.id = run.Api.Run.id ->
+          return State.{ st with selected_logs = selected }
       | _ ->
           return st)
   | `ConfirmCommand (run_id, msg_dom_id, top_run) ->
@@ -375,8 +385,11 @@ let run () =
     | None -> assert false in
   let init =
     return (*~c:[Cmd.echo (Initialize (fun () -> return `GetPastProgramRuns))]*)
-      State.{ location = ListPastRuns [||] ;
-              waiting = false ; refresh_msg = Some `GetPastProgramRuns } in
+      State.{
+        location = ListPastRuns [||] ;
+        waiting = false ;
+        refresh_msg = Some `GetPastProgramRuns ;
+        selected_logs = [0; 1; 2] } in
   let a = app ~init ~view ~update () in
   let a = Vdom_blit.run a in
   vdom_app := Some a ;

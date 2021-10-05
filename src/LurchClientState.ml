@@ -36,4 +36,6 @@ type 'msg state =
     waiting : bool ;
     (* Recent message that should be resent to refresh the page. That's usually
      * the last `GetFoo. *)
-    refresh_msg : 'msg option }
+    refresh_msg : 'msg option ;
+    (* Set of file descriptors the user is interested to see on a run logs: *)
+    selected_logs : int list }
