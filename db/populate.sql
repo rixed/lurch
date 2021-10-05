@@ -88,7 +88,7 @@ insert into command_exec (command, pathname, args) values
 
 insert into command default values;
 insert into command_exec (command, pathname) values
-  ((select max(id) from command), 'configure');
+  ((select max(id) from command), './configure');
 
 insert into command default values;
 insert into command_exec (command, pathname, args) values
@@ -104,7 +104,7 @@ insert into command_sequence (command, subcommands) values
    -- !!!WARNING WARNING WARNING!!! postgres arrays start at 1 !!!
    ARRAY[(select command from command_exec where args[1] = 'fetch'),
          (select command from command_exec where args[1] = 'checkout'),
-         (select command from command_exec where pathname = 'configure'),
+         (select command from command_exec where pathname = './configure'),
          (select command from command_exec where args[1] = '-j3'),
          (select command from command_exec where args[1] = 'check')]);
 
