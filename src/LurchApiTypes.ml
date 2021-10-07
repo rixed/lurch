@@ -270,6 +270,9 @@ struct
       (* Children are reified here because it makes displaying runs much
        * easier for the client: *)
       children : t array ;
+      (* Environment in which subcommands are run, aka list of all set
+       * variables: *)
+      env : (string * string) list ;
       (* Initially empty, populated by a specific call "get_logs": *)
       logs : LogLine.t array ;
       (* This depends on the command. They are *not* updated when the
@@ -285,6 +288,51 @@ struct
   let to_json_string = to_json_string to_json
   let to_json_buffer = to_json_buffer to_json
   let of_json_string : string -> t = [%of_json: t]
+
+  (* Expand in string s any "${VAR}" by its value: *)
+  let var_expand env s =
+    (* [i] scans [s] and [j] scans within "${VAR}". Returns the new string *)
+    let rec repl1 i j s =
+      if i + j >= String.length s then s else
+      match s.[i + j] with
+      | '$' ->
+          repl1 (i + j) 1 s
+      | '{' when j = 1 ->
+          repl1 i 2 s
+      | '}' when j >= 2 ->
+          let var_name = String.sub s (i + 2) (j - 2) in
+          let s, i =
+            let e = i + j + 1 in
+            match List.assoc var_name env with
+            | exception Not_found ->
+                (* ignore it then *)
+                s, e
+            | v ->
+                String.sub s 0 i ^ v ^ String.sub s e (String.length s - e),
+                i + String.length v in
+          repl1 i 0 s
+      | _ when j >= 2 ->
+          repl1 i (j + 1) s
+      | _ ->
+          repl1 (i + 1) 0 s in
+    let rec loop s =
+      let s' = repl1 0 0 s in
+      if s == s' then s else loop s' in
+    loop s
+
+  (*$< Run *)
+
+  (*$= var_expand & ~printer:BatPervasives.identity
+    "" (var_expand [] "")
+    "foo" (var_expand [] "foo")
+    "foo" (var_expand [ "bar", "baz" ] "foo")
+    "fooglopbaz" (var_expand [ "bar", "glop" ] "foo${bar}baz")
+    "foo${zoo}baz" (var_expand [ "bar", "glop" ] "foo${zoo}baz")
+    "foo${bar" (var_expand [ "bar", "glop" ] "foo${bar")
+    "foo!baz" (var_expand [ "bar", "glop" ; "pas_glop", "!" ] "foo${pas_${bar}}baz")
+  *)
+
+  (*$>*)
 end
 
 (* Views *)

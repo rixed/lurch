@@ -265,6 +265,9 @@ let start_terminal run =
       Db.Run.start run.id ;
       Db.Run.stop run.id exit_code ;
   | Exec { pathname ; args ; env ; timeout } ->
+      let pathname = Api.Run.var_expand run.env pathname
+      and args = Array.map (Api.Run.var_expand run.env) args
+      and env = Array.map (Api.Run.var_expand run.env) env in
       start_process pathname ~args ~env ?timeout run
   | Chroot _ | Docker _ ->
       (* Run the creation of the isolation layer as any other
@@ -612,8 +615,10 @@ let exec run_id =
   let run = Db.Run.get run_id in
   match run.Api.Run.command.operation with
   | Chroot { template } ->
+      let template = Api.Run.var_expand run.env template in
       Chroot.create run.id template
   | Docker { image } ->
+      let image = Api.Run.var_expand run.env image in
       Docker.create run.id image
   | _ ->
       Printf.sprintf "Cannot exec_ command %s"

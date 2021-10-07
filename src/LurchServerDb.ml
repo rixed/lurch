@@ -87,11 +87,46 @@ let list = function
       []
   | s ->
       assert (String.length s >= 2) ;
-      (* Remove the curly braces: *)
+      (* Remove the outer curly braces: *)
       assert (s.[0] = '{' && s.[String.length s - 1] = '}') ;
       let s = String.sub s 1 (String.length s - 2) in
-      String.split_on_char ',' s |>
-      List.map sql_array_unquote
+      (* Split on all outer coma (not those within curly braces!): *)
+      let rec loop lst depth start i =
+        (* FIXME: handle double quotes *)
+        if i >= String.length s then (
+          String.sub s start (i - start) :: lst
+        ) else match s.[i] with
+        | ',' when depth = 0 ->
+            let lst = String.sub s start (i - start) :: lst in
+            loop lst depth (i + 1) (i + 1)
+        | '{' ->
+            loop lst (depth + 1) start (i + 1)
+        | '}' ->
+            assert (depth > 0) ;
+            loop lst (depth - 1) start (i + 1)
+        | _ ->
+            loop lst depth start (i + 1) in
+      loop [] 0 0 0 |>
+      List.fold_left (fun lst s ->
+        sql_array_unquote s :: lst
+      ) []
+
+(*$= list & ~printer:BatPervasives.dump
+  ["foo"] (list "{foo}")
+  ["foo" ; "bar"] (list "{foo,bar}")
+  ["{foo,bar}"] (list "{{foo,bar}}")
+*)
+
+let get_env s =
+  list s |>
+  List.map (fun a ->
+    match list a with
+    | [ n ; v ] -> (n, v)
+    | _ -> assert false)
+
+(*$= get_env & ~printer:BatPervasives.dump
+  [ "FOO", "Bar" ] (get_env "{{FOO,Bar}}")
+*)
 
 let array =
   Array.of_list % list
@@ -281,7 +316,22 @@ struct
       [| string_of_int id |] in
     let res =
       cnx#exec ~expect:[Tuples_ok] ~params
-        "select \
+        "with recursive var_bindings as ( \
+           select r.id, r.parent_run, c.var_name, v.value
+           from
+             run r \
+             left outer join let_value v on v.run = r.id \
+             left outer join command_let c on c.command = r.command \
+           where r.id = $1 \
+           union \
+           select r2.id, r2.parent_run, c2.var_name, v2.value \
+           from \
+             run r2 \
+             left outer join let_value v2 on v2.run = r2.id \
+             left outer join command_let c2 on c2.command = r2.command \
+             inner join var_bindings vb on r2.id = vb.parent_run \
+         ) \
+         select \
            r.command, \
            coalesce(r.top_run, r.id) as top_run, \
            coalesce(r.parent_run, r.id) as parent_run, \
@@ -293,7 +343,10 @@ struct
            r.cpu_usr, r.cpu_sys, r.mem_usr, r.mem_sys, \
            array(select id from run where parent_run = r.id order by id) \
              as children, \
-           w.message, c.path, d.instance, d.docker_id, v.value \
+           w.message, c.path, d.instance, d.docker_id, v.value, \
+           array(select array[var_name, value] from var_bindings \
+                 where var_name is not null) \
+             as environment \
          from run r \
          join run rtop on rtop.id = coalesce(r.top_run, r.id) \
          left outer join program p on p.command = rtop.command \
@@ -332,6 +385,7 @@ struct
       docker_instance = getn identity 17 ;
       docker_id = getn identity 18 ;
       var_value = getn identity 19 ;
+      env = get_env (getv identity 20) ;
       (* Populated independently as we do want to load logs on demand only: *)
       logs = [||] }
 

@@ -374,6 +374,7 @@ let rec view run =
                       onclick (fun _ -> `GetRun (run.id, run.logs)) ]
           ("#" ^ string_of_int run.id) ;
         text ")" ] ;
+    (* div (text "env is" :: List.map (fun (n,v) -> text (n ^"="^ v)) run.env) ; *)
     (match run.command.operation with
     | Nop { exit_code } ->
         text ("Returns exit code "^ string_of_int exit_code)
@@ -429,6 +430,7 @@ let rec view run =
           | Some t ->
               p [ text "Time out after " ; config_txt (string_of_float t) ; text "." ] ]
     | Approve { subcommand ; comment } ->
+        let comment = Api.Run.var_expand run.env comment in
         div [
           (match run.confirmation_msg with
           | None ->
