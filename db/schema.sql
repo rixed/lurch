@@ -378,7 +378,7 @@ create view list_pending_lets as
   from run r
   join command_let c on c.command = r.command
   join let_value v on v.run = r.id
-  left outer join run r2 on c.subcommand = r2.command
+  left outer join run r2 on r2.parent_run = r.id
   where r.stopped is null and (r2.id is null or r2.stopped is not null);
 
 -- List all containers/chroot that have to be build
