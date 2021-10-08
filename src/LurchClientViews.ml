@@ -3,7 +3,6 @@ open Vdom
 
 module Api = LurchApiTypes
 module Command = LurchClientCommand
-module Lang = LurchCommandLanguage
 module Program = LurchClientProgram
 module State = LurchClientState
 module Version = LurchVersion

@@ -3,7 +3,6 @@ open Vdom
 
 open LurchClientLib
 module Api = LurchApiTypes
-module Lang = LurchCommandLanguage
 module Program = LurchClientProgram
 module State = LurchClientState
 module Views = LurchClientViews

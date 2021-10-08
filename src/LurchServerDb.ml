@@ -145,19 +145,20 @@ struct
                     "command_retry" ; "command_if" ; "command_nop" ;
                     "command_pause" ; "command_let" ; "command_spawn" |] in
     let operation =
-      array_find_mapi (fun i ->
+      array_find_mapi (fun table_num ->
         let params = [| string_of_int id |] in
         let res =
           cnx#exec ~expect:[Tuples_ok] ~params
             (* Postgres does not accept parameters in place of table names *)
-            ("select * from "^ sql_quote tables.(i) ^" where command = $1") in
+            ("select * from "^ sql_quote tables.(table_num) ^
+             " where command = $1") in
         if res#ntuples <> 1 then None else (
           log.debug "Got command tuple %a"
             (Array.print String.print) (res#get_tuple 0) ;
           let getv = res#getvalue 0 in
           let getn conv i =
             if res#getisnull 0 i then None else Some (conv (getv i)) in
-          Some (match i with
+          Some (match table_num with
           | 0 ->
               Api.Command.Isolate
                 { builder = get (int_of_string (getv 1)) ;

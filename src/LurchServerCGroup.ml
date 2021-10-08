@@ -2,7 +2,6 @@
 open Batteries
 
 module Api = LurchApiTypes
-module Lang = LurchCommandLanguage
 
 open LurchServerLib
 

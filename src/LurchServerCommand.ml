@@ -148,7 +148,7 @@ let do_monitor_run isolation_run cgroup pid stdout_r stderr_r timeout run_id =
             let signal, signame =
               if now -. stopped >= delay_before_hard_kill
               then Sys.sigkill, "kill" else Sys.sigterm, "term" in
-            log.warning "Signaling pid %d (from cancelled run#%d) with signal %s."
+            log.warning "Signaling pid %d (from cancelled run #%d) with signal %s."
               pid run.id signame ;
             Unix.kill pid signal
         | None ->
@@ -408,7 +408,7 @@ let step_sequences () =
         let run_id =
           Db.Run.insert ~top_run:seq.run.top_run ~parent_run:seq.run.id
                         subcommands.(seq.step_count).Api.Command.id in
-        log.debug "Created new run#%d" run_id)))
+        log.debug "Created new run #%d" run_id)))
 
 let finish_as_subrun run subrun =
   match subrun.Api.Run.exit_code with
@@ -446,13 +446,13 @@ let step_approvals () =
             let run_id = Db.Run.insert ~top_run:approve.run.top_run
                                        ~parent_run:approve.run.id
                                        subcommand.Api.Command.id in
-            log.debug "Created a new run#%d" run_id
+            log.debug "Created a new run #%d" run_id
           ) else (
             Db.Run.stop approve.run.id Api.ExitStatus.timed_out
           ) in
         match approve.run.started, timeout, approve.time with
         | None, _, _ ->
-            log.debug "Starting run#%d for wait_confirmation" approve.run.id ;
+            log.debug "Starting run #%d for wait_confirmation" approve.run.id ;
             Db.Run.start approve.run.id
         | Some started, Some timeout, None ->
             let age = Unix.gettimeofday () -. started in
@@ -536,7 +536,7 @@ let step_isolation () =
               let run_id = Db.Run.insert ~top_run:isolate.top_run
                                          ~parent_run:isolate.id
                                          subcommand.Api.Command.id in
-              log.debug "Created a new run#%d" run_id
+              log.debug "Created a new run #%d" run_id
           | Some status ->
               let line =
                 Printf.sprintf "Isolation builder (run #%d) failed with \
@@ -586,7 +586,7 @@ let step_isolation () =
 let propagate_cancellations () =
   Db.ListObsoleteRuns.get () |>
   Enum.iter (fun run_id ->
-    log.warning "Propagate cancellation to run#%d" run_id ;
+    log.warning "Propagate cancellation to run #%d" run_id ;
     Db.Run.cancel run_id)
 
 (* Get the list of old unstarted top runs and delete them if there are too
