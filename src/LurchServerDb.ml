@@ -389,17 +389,20 @@ struct
       (* Populated independently as we do want to load logs on demand only: *)
       logs = [||] }
 
-  let insert ?top_run ?parent_run cmd_id =
+  let insert ?top_run ?parent_run ?creator_user ?creator_run cmd_id =
     let cnx = get_cnx () in
     let params =
       [| string_of_int cmd_id ;
          or_null string_of_int top_run ;
-         or_null string_of_int parent_run |] in
+         or_null string_of_int parent_run ;
+         or_null string_of_int creator_run ;
+         or_null identity creator_user |] in
     log.debug "Inserting run for command %d" cmd_id ;
     let res =
       cnx#exec ~expect:[Tuples_ok] ~params
-        "insert into run (command, top_run, parent_run) \
-         values ($1, $2, $3) returning id" in
+        "insert into run (command, top_run, parent_run, creator_run, \
+                          creator_user) \
+         values ($1, $2, $3, $4, $5) returning id" in
     res#getvalue 0 0 |> int_of_string
 
   let start ?cgroup ?pid run_id =

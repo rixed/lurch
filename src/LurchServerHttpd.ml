@@ -84,9 +84,9 @@ let cancel_run run_id =
 
 (* Record the run in the DB but does not start any process just yet.
  * Leave this to `lurch step`. *)
-let start_program name =
+let start_program name creator_user =
   let program = Db.Program.get name in
-  Db.Run.insert program.Api.Program.command.id |>
+  Db.Run.insert ~creator_user program.Api.Program.command.id |>
   get_run
 
 let approve run_id msg =
@@ -137,7 +137,11 @@ let serve () =
         cancel_run run_id
     | "start_program" ->
         let name = get_param "program" identity in
-        start_program name
+        let creator_user =
+          try Sys.getenv "REMOTE_USER"
+          with Not_found ->
+            failwith "Unidentified users are not allowed to start programs" in
+        start_program name creator_user
     | "approve" ->
         let run_id = get_param "run" int_of_string
         and msg = get_param "message" identity in

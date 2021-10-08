@@ -68,9 +68,12 @@ let cgi dbg conninfo log_dir () =
 
 let start dbg conninfo program_name () =
   init_log dbg true ;
+  let creator_user =
+    let pw = Unix.(getpwuid (getuid ())) in
+    pw.Unix.pw_name in
   Db.init conninfo ;
   let program = Db.Program.get program_name in
-  let run_id = Db.Run.insert program.Api.Program.command.id in
+  let run_id = Db.Run.insert ~creator_user program.Api.Program.command.id in
   log.info "Program %s started as run #%d." program_name run_id ;
   Db.close ()
 

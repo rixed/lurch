@@ -139,6 +139,15 @@ create table run (
   top_run int,
   -- The parent run (NULL -> no parent)
   parent_run int,
+  -- The run that created this one, or null if it was not created by a run
+  creator_run int check (parent_run is null or creator_run is null),
+  -- An optional reference to the user who started this run
+  creator_user text
+    -- No creators unless that's a top-level run, and then only one creator:
+    check ((parent_run is not null and creator_user is null) or
+           (parent_run is null and (
+             (creator_user is null or creator_run is null) and
+             (creator_user is not null or creator_run is not null)))),
   created timestamp not null default now(),
   started timestamp,
   stopped timestamp check (stopped is null or started is not null),
@@ -163,6 +172,7 @@ create table run (
   foreign key (command) references command (id) on delete cascade,
   foreign key (top_run) references run (id) on delete cascade,
   foreign key (parent_run) references run (id) on delete cascade,
+  foreign key (creator_run) references run (id) on delete cascade,
   -- we must be able to associate a given subcommand to its run:
   unique (command, parent_run)
 );
