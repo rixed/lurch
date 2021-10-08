@@ -255,8 +255,8 @@ let start_process pathname ~args ?(env=[||]) ?timeout run =
 (* The timeout to use for every "internal" commands: *)
 let command_timeout = ref (Some 600.)
 
-(* Terminals are commands that must actually be executed externally, like exec
- * commands. *)
+(* Terminals are unstarted commands that need no input from the user or
+ * otherwise and therefore can be executed as soon as they are created. *)
 let start_terminal run =
   match run.Api.Run.command.operation with
   | Nop { exit_code } ->
@@ -287,6 +287,22 @@ let start_terminal run =
            "LURCH_CHROOTS="^ !Chroot.chroot_prefix ;
            "LURCH_LOG_DIR="^ !log_dir |] in
       start_process "/bin/sh" ~args ~env ~timeout:!command_timeout run
+  | Spawn { program } ->
+      let program = Api.Run.var_expand run.env program in
+      Db.Run.start run.id ;
+      let exit_code =
+        match Db.Program.get program with
+        | exception Failure m ->
+            let line = "Cannot spawn program "^ program ^": "^ m in
+            Db.LogLine.insert run.id 2 line ;
+            1
+        | program ->
+            let subrun = Db.Run.insert ~creator_run:run.id program.command.id in
+            let line = "Spawning program "^ program.name ^" as run #"^
+                       string_of_int subrun in
+            Db.LogLine.insert run.id 1 line ;
+            0 in
+      Db.Run.stop run.id exit_code
   (* Those are not terminals: *)
   | Isolate _
   | Approve _

@@ -161,6 +161,8 @@ let command_of_string str =
     | Lst [ Sym "pause" ; Sym duration ; s ] ->
         Pause { duration = float_of_string duration ;
                 subcommand = command_of_sexpr s }
+    | Lst [ Sym "spawn" ; Str program ] ->
+        Spawn { program }
     | x -> raise (Invalid_expression x)
   and command_of_sexpr s =
     { id = 0 ; operation = operation_of_sexpr s }
@@ -221,6 +223,8 @@ let string_of_command ?max_depth cmd =
         Lst [ Sym "pause" ;
               Sym (string_of_float duration) ;
               sexpr_of_command ?max_depth subcommand ]
+    | Spawn { program } ->
+        Lst [ Sym "spawn" ; Str program ]
   and sexpr_of_command ?max_depth c =
     match max_depth with
     | Some d when d <= 0 -> Str "…"

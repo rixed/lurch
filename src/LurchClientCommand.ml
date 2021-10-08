@@ -31,7 +31,7 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
       | NotIsolated ->
           [ "isolate" ;
             "no-op" ; "approve" ; "sequence" ; "retry" ; "if" ; "pause" ;
-            "let" ]
+            "let" ; "spawn" ]
       | Isolation ->
           [ "chroot" ; "docker" ; "let" ]
       | Isolated ->
@@ -42,7 +42,7 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
        * context so spare the console from spurious error messages in that
        * case: *)
       "isolate" ; "chroot" ; "docker" ; "no-op" ; "exec" ; "approve" ;
-      "sequence" ; "retry" ; "if" ; "pause" ; "let"
+      "sequence" ; "retry" ; "if" ; "pause" ; "let" ; "spawn"
     ] in
   let label_of_operation op =
     let l = Api.Command.name_of_operation op in
@@ -195,7 +195,13 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
           input_text ?id:(id "duration") ~label:"Duration:" ~units:"seconds" ~editable
             ~placeholder:"seconds…" (string_of_float duration) ;
           h3 [ text "Command" ] ;
-          edit_as_form ~op_mode ~editable ?dom_id:(id "subcommand") subcommand ]) ]
+          edit_as_form ~op_mode ~editable ?dom_id:(id "subcommand") subcommand ]
+    | Spawn { program } ->
+        div [
+          p [ text "Start the specified program. Do not wait for its \
+                    termination." ] ;
+          input_text ?id:(id "program") ~label:"Program name:" ~editable
+            ~placeholder:"enter the program name" program ]) ]
 
 let edit ~editable ?dom_id command =
   edit_as_form ~op_mode:NotIsolated ~editable ?dom_id command
@@ -343,6 +349,9 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
         let subcommand = opt_subcommand "subcommand"
         and duration = float_of_string (value ~def:"0" "duration") in
         Api.Command.Pause { duration ; subcommand }
+    | "spawn" ->
+        let program = value ~def:"" "program" in
+        Api.Command.Spawn { program }
     | _ ->
         invalid_arg "command_of_form_exc" in
   Api.Command.{ id = 0 ; operation }
@@ -495,7 +504,11 @@ let rec view run =
     | Pause { duration ; subcommand } ->
         div [
           p [ text ("Pause for "^ string_of_float duration ^" seconds, then:") ] ;
-          view_subcommand subcommand ]) ;
+          view_subcommand subcommand ]
+    | Spawn { program } ->
+        let program = Api.Run.var_expand run.env program in
+        div [
+          p [ text ("Spawn program "^ program ^".") ] ]) ;
     (match run.started, run.pid, run.stopped with
     | None, _, _ ->
         p ~a:[ class_ "status" ]

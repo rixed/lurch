@@ -44,6 +44,11 @@ struct
         { condition : t ; consequent : t ; alternative : t }
     | Pause of
         { duration : float ; subcommand : t }
+    | Spawn of
+        { (* Better than taking the run_id of the program to spawn, storing
+             its name allow to make use of variable expansion. Also survive
+             program changes (the table of programs is append-only): *)
+          program : string }
     [@@deriving json]
 
   and t = { id : int ; operation : operation }
@@ -51,7 +56,7 @@ struct
 
   let rec fold f u cmd =
     match cmd.operation with
-    | Nop _ | Chroot _ | Docker _ | Exec _ ->
+    | Nop _ | Chroot _ | Docker _ | Exec _ | Spawn _ ->
         f u cmd
     | Isolate { subcommand }
     | Approve { subcommand }
@@ -85,6 +90,7 @@ struct
     | Retry _ -> "retry"
     | If _ -> "if"
     | Pause _ -> "pause"
+    | Spawn _ -> "spawn"
 
   let rec string_of_operation =
     let or_null conv = function
@@ -126,6 +132,8 @@ struct
     | Pause { duration ; subcommand } ->
         "Pause(duration:"^ string_of_float duration ^", subcommand:"^
         to_string subcommand ^")"
+    | Spawn { program } ->
+        "Spawn(program:"^ program ^")"
 
   and to_string t =
     "{id:"^ string_of_int t.id ^ " operation:"^ string_of_operation t.operation ^"}"

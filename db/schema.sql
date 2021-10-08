@@ -117,6 +117,12 @@ create table command_pause (
   foreign key (subcommand) references command (id)
 );
 
+create table command_spawn (
+  command int,
+  program text not null,
+  foreign key (command) references command (id) on delete cascade
+);
+
 -- Now we have named program:
 
 -- Append only tables so we can go back in history, see previous runs etc:
@@ -308,7 +314,8 @@ create view list_waiting_terminals as
   from run r
   join (
     select command from command_exec union
-    select command from command_nop
+    select command from command_nop union
+    select command from command_spawn
   ) c on r.command = c.command
   where
     r.started is null;

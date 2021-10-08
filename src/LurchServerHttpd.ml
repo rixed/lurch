@@ -37,7 +37,7 @@ let del_program name =
 (* Programs submitted via the GUI must not execute any non-isolated binary: *)
 let rec check_isolation cmd =
   match cmd.Api.Command.operation with
-  | Api.Command.Nop _ | Isolate _ ->
+  | Api.Command.Nop _ | Isolate _ | Spawn _ ->
       ()
   | Chroot _ | Docker _ ->
       (* Because we do not recurse into Isolate *)

@@ -143,7 +143,7 @@ struct
     let tables = [| "command_isolate" ; "command_chroot" ; "command_docker" ;
                     "command_exec" ; "command_approve" ; "command_sequence" ;
                     "command_retry" ; "command_if" ; "command_nop" ;
-                    "command_pause" ; "command_let" |] in
+                    "command_pause" ; "command_let" ; "command_spawn" |] in
     let operation =
       array_find_mapi (fun i ->
         let params = [| string_of_int id |] in
@@ -204,6 +204,9 @@ struct
                 var_name = getv 2 ;
                 default = getv 3 ;
                 comment = getv 4 }
+          | 11 ->
+              Api.Command.Spawn {
+                program = getv 1 }
           | _ ->
               assert false)
         )
@@ -263,6 +266,8 @@ struct
           "command_pause",
           [| "duration", string_of_float duration ;
              "subcommand", insert_or_update subcommand |]
+      | Spawn { program } ->
+          "command_spawn", [| "program", program |]
     in
     let params = Array.map snd field_params in
     let command_id =
