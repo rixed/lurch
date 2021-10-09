@@ -124,9 +124,6 @@ let command_of_string str =
   let string_of_str = function
     | Str s -> s
     | _ -> invalid_arg "string_of_str" in
-  let of_string_lst conv = function
-    | Lst l -> List.map conv l
-    | _ -> invalid_arg "of_string_lst" in
   let rec operation_of_sexpr = function
     | Lst [ Sym "no-op" ; Sym exit_code ] ->
         Nop { exit_code = int_of_string exit_code }
@@ -137,9 +134,9 @@ let command_of_string str =
         Chroot { template }
     | Lst [ Sym "docker" ; Str image ] ->
         Docker { image }
-    | Lst [ Sym "exec" ; Str pathname ; args ; env ; timeout ] ->
-        let args = of_string_lst string_of_str args |> Array.of_list
-        and env = of_string_lst string_of_str env |> Array.of_list
+    | Lst [ Sym "exec" ; Str pathname ; Lst args ; Lst env ; timeout ] ->
+        let args = List.map string_of_str args |> Array.of_list
+        and env = List.map string_of_str env |> Array.of_list
         and timeout = or_null float_of_sym timeout in
         Exec { pathname ; args ; env ; timeout }
     | Lst [ Sym "approve" ; Sym timeout ; Str comment ; Sym autosuccess ; s ] ->
@@ -147,7 +144,7 @@ let command_of_string str =
           if timeout = "null" then None else Some (float_of_string timeout) in
         Approve { subcommand = command_of_sexpr s ; timeout ; comment ;
                   autosuccess = sql_bool_of_string autosuccess }
-    | Lst [ Sym "let" ; Str var_name ; Str default ; Str comment ; s ] ->
+    | Lst [ Sym "let" ; Sym var_name ; Str default ; Str comment ; s ] ->
         Let { var_name ; default ; comment ; subcommand = command_of_sexpr s }
     | Lst (Sym "sequence" :: cmds) ->
         Sequence { subcommands = List.map command_of_sexpr cmds }
@@ -163,6 +160,9 @@ let command_of_string str =
                 subcommand = command_of_sexpr s }
     | Lst [ Sym "spawn" ; Str program ] ->
         Spawn { program }
+    | Lst [ Sym "for" ; Sym var_name ; Lst values ; s ] ->
+        let values = List.map string_of_str values |> Array.of_list in
+        ForLoop { var_name ; values ; subcommand = command_of_sexpr s }
     | x -> raise (Invalid_expression x)
   and command_of_sexpr s =
     { id = 0 ; operation = operation_of_sexpr s }
@@ -176,7 +176,6 @@ let string_of_command ?max_depth cmd =
     | None -> Sym "null"
     | Some v -> conv v in
   let sym_of_float f = Sym (string_of_float f) in
-  let lst_of_string conv l = Lst (List.map conv l) in
   let to_str s = Str s in
   let rec sexpr_of_operation ?max_depth = function
     | Nop { exit_code } ->
@@ -191,8 +190,8 @@ let string_of_command ?max_depth cmd =
         Lst [ Sym "docker" ; Str image ]
     | Exec { pathname ; args ; env ; timeout } ->
         Lst [ Sym "exec" ; Str pathname ;
-              lst_of_string to_str (Array.to_list args) ;
-              lst_of_string to_str (Array.to_list env) ;
+              Lst (List.map to_str (Array.to_list args)) ;
+              Lst (List.map to_str (Array.to_list env)) ;
               or_null sym_of_float timeout ]
     | Approve { subcommand ; timeout ; comment ; autosuccess } ->
         Lst [ Sym "approve" ;
@@ -203,7 +202,7 @@ let string_of_command ?max_depth cmd =
               sexpr_of_command ?max_depth subcommand ]
     | Let { var_name ; default ; subcommand ; comment } ->
         Lst [ Sym "let" ;
-              Str var_name ;
+              Sym var_name ;
               Str default ;
               Str comment ;
               sexpr_of_command ?max_depth subcommand ]
@@ -225,6 +224,10 @@ let string_of_command ?max_depth cmd =
               sexpr_of_command ?max_depth subcommand ]
     | Spawn { program } ->
         Lst [ Sym "spawn" ; Str program ]
+    | ForLoop { var_name ; values ; subcommand } ->
+        let values = List.map to_str (Array.to_list values) in
+        Lst [ Sym "for" ; Sym var_name ; Lst values ;
+              sexpr_of_command ?max_depth subcommand ]
   and sexpr_of_command ?max_depth c =
     match max_depth with
     | Some d when d <= 0 -> Str "…"

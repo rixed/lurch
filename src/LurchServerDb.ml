@@ -143,7 +143,8 @@ struct
     let tables = [| "command_isolate" ; "command_chroot" ; "command_docker" ;
                     "command_exec" ; "command_approve" ; "command_sequence" ;
                     "command_retry" ; "command_if" ; "command_nop" ;
-                    "command_pause" ; "command_let" ; "command_spawn" |] in
+                    "command_pause" ; "command_let" ; "command_spawn" ;
+                    "command_for_loop" |] in
     let operation =
       array_find_mapi (fun table_num ->
         let params = [| string_of_int id |] in
@@ -208,6 +209,11 @@ struct
           | 11 ->
               Api.Command.Spawn {
                 program = getv 1 }
+          | 12 ->
+              Api.Command.ForLoop {
+                var_name = getv 1 ;
+                values = array (getv 2) ;
+                subcommand = get (int_of_string (getv 3)) }
           | _ ->
               assert false)
         )
@@ -269,6 +275,11 @@ struct
              "subcommand", insert_or_update subcommand |]
       | Spawn { program } ->
           "command_spawn", [| "program", program |]
+      | ForLoop { var_name ; values ; subcommand } ->
+          "command_for_loop",
+          [| "var_name", var_name ;
+             "values",  sql_of_string_array values ;
+             "subcommand", insert_or_update subcommand |]
     in
     let params = Array.map snd field_params in
     let command_id =
@@ -323,18 +334,16 @@ struct
     let res =
       cnx#exec ~expect:[Tuples_ok] ~params
         "with recursive var_bindings as ( \
-           select r.id, r.parent_run, c.var_name, v.value
+           select r.id, r.parent_run, b.var_name, b.value
            from
              run r \
-             left outer join let_value v on v.run = r.id \
-             left outer join command_let c on c.command = r.command \
+             left outer join run_bindings b on b.id  = r.id \
            where r.id = $1 \
            union \
-           select r2.id, r2.parent_run, c2.var_name, v2.value \
+           select r2.id, r2.parent_run, b2.var_name, b2.value \
            from \
              run r2 \
-             left outer join let_value v2 on v2.run = r2.id \
-             left outer join command_let c2 on c2.command = r2.command \
+             left outer join run_bindings b2 on b2.id = r2.id \
              inner join var_bindings vb on r2.id = vb.parent_run \
          ) \
          select \
@@ -773,6 +782,23 @@ struct
                      Array.map int_of_string ;
         step_count = getv int_of_string 2 ;
         all_success = getv bool_of_string 3 })
+end
+
+module ListRunningForLoops =
+struct
+  let get () =
+    let cnx = get_cnx () in
+    let res =
+      cnx#exec ~expect:[Tuples_ok]
+        "select id, exit_codes from list_running_for_loops" in
+    log.debug "%d for loops are unfinished." res#ntuples ;
+    Enum.init res#ntuples (fun i ->
+      let getv conv j = conv (res#getvalue i j) in
+      log.debug "Got tuple %a" (Array.print String.print) (res#get_tuple i) ;
+      Api.ListRunningForLoops.{
+        run = Run.get (getv int_of_string 0) ;
+        exit_codes = array (getv identity 1) |>
+                     Array.map int_of_string })
 end
 
 module ListRunningPauses =

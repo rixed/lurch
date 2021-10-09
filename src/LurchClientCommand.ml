@@ -31,18 +31,18 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
       | NotIsolated ->
           [ "isolate" ;
             "no-op" ; "approve" ; "sequence" ; "retry" ; "if" ; "pause" ;
-            "let" ; "spawn" ]
+            "let" ; "spawn" ; "for" ]
       | Isolation ->
           [ "chroot" ; "docker" ; "let" ]
       | Isolated ->
           [ "no-op" ; "exec" ; "approve" ; "sequence" ; "retry" ; "if" ;
-            "pause" ; "let" ]
+            "pause" ; "let" ; "for" ]
     else [
       (* This [edit] function can also be used to view any command out of
        * context so spare the console from spurious error messages in that
        * case: *)
       "isolate" ; "chroot" ; "docker" ; "no-op" ; "exec" ; "approve" ;
-      "sequence" ; "retry" ; "if" ; "pause" ; "let" ; "spawn"
+      "sequence" ; "retry" ; "if" ; "pause" ; "let" ; "spawn" ; "for"
     ] in
   let label_of_operation op =
     let l = Api.Command.name_of_operation op in
@@ -201,7 +201,20 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
           p [ text "Start the specified program. Do not wait for its \
                     termination." ] ;
           input_text ?id:(id "program") ~label:"Program name:" ~editable
-            ~placeholder:"enter the program name" program ]) ]
+            ~placeholder:"enter the program name" program ]
+    | ForLoop { var_name ; values ; subcommand } ->
+        div [
+          p [ text "Repeat the body for each specified value. A variable of the \
+                    specified name will be made available within the body with \
+                    the current value." ] ;
+          input_text ?id:(id "var_name") ~label:"Variable Name:" ~editable
+            var_name ;
+          input_text_multi ?id:(id "values") ~editable ~label:"Values:"
+            ~on_add:(refresh_msg ~add_input:(id "values", "") ())
+            ~on_rem:(fun i -> refresh_msg ~rem_input:(id "values", i) ())
+            (Array.to_list values) ;
+          h3 [ text "Body" ] ;
+          edit_as_form ~op_mode ~editable ?dom_id:(id "subcommand") subcommand ]) ]
 
 let edit ~editable ?dom_id command =
   edit_as_form ~op_mode:NotIsolated ~editable ?dom_id command
@@ -352,6 +365,11 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
     | "spawn" ->
         let program = value ~def:"" "program" in
         Api.Command.Spawn { program }
+    | "for" ->
+        let var_name = value ~def:"" "var_name"
+        and values = value_strings "values"
+        and subcommand = opt_subcommand "subcommand" in
+        Api.Command.ForLoop { var_name ; values ; subcommand }
     | _ ->
         invalid_arg "command_of_form_exc" in
   Api.Command.{ id = 0 ; operation }
@@ -364,19 +382,21 @@ let command_of_form ?add_input ?rem_input document dom_id =
 
 let rec view run =
   let config_txt = txt_span ~a:[class_ "command"] in
-  let find_subrun subcmd_id =
-    array_find (fun r ->
+  let find_subruns subcmd_id =
+    array_find_all (fun r ->
       r.Api.Run.command.id = subcmd_id
     ) run.Api.Run.children in
   (* This [view] function draws the commands when they are running.
    * If they are not running then just draw the read-only version of
    * the command editor instead: *)
   let view_subcommand subcmd =
-    match find_subrun subcmd.Api.Command.id with
-    | exception Not_found ->
+    match find_subruns subcmd.Api.Command.id with
+    | [] ->
         edit ~editable:false subcmd
-    | subrun ->
-        view subrun in
+    | [ subrun ] ->
+        view subrun
+    | subruns ->
+        ol (List.map view subruns) in
   div [
     p [ text "(" ;
         txt_span ~a:[ class_ "click" ;
@@ -508,7 +528,12 @@ let rec view run =
     | Spawn { program } ->
         let program = Api.Run.var_expand run.env program in
         div [
-          p [ text ("Spawn program "^ program ^".") ] ]) ;
+          p [ text ("Spawn program "^ program ^".") ] ]
+    | ForLoop { var_name ; values ; subcommand } ->
+        (* Have to display all iterations: *)
+        div [
+          p [ text ("for "^ var_name ^" in "^ array_join ", " values ^" do:") ] ;
+          view_subcommand subcommand ]) ;
     (match run.started, run.pid, run.stopped with
     | None, _, _ ->
         p ~a:[ class_ "status" ]

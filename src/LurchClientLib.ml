@@ -43,6 +43,14 @@ let array_find f a =
     loop (i + 1) in
   loop 0
 
+let array_find_all f a =
+  let rec loop l i =
+    if i >= Array.length a then List.rev l
+    else
+      let l = if f a.(i) then a.(i) :: l else l in
+      loop l (i + 1) in
+  loop [] 0
+
 let array_filteri f a =
   let _, items =
     Array.fold_left (fun (i, items) v ->
@@ -53,6 +61,12 @@ let array_filteri f a =
 
 let array_filter f a =
   array_filteri (fun _ x -> f x) a
+
+let array_join j a =
+  let rec loop s i =
+    if i >= Array.length a then s else
+    loop (s ^ j ^ a.(i)) (i + 1) in
+  if Array.length a = 0 then "" else loop a.(0) 1
 
 let date_of_ts ts =
   let date = Js.(new%js date_fromTimeValue (1000. *. ts)) in

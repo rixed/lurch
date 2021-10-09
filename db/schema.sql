@@ -123,6 +123,16 @@ create table command_spawn (
   foreign key (command) references command (id) on delete cascade
 );
 
+create table command_for_loop (
+  command int,
+  var_name text not null,
+  -- !!!WARNING WARNING WARNING!!! postgres arrays start at 1 !!!
+  values text[] not null default '{}',
+  subcommand int not null,
+  foreign key (command) references command (id) on delete cascade,
+  foreign key (subcommand) references command (id)
+);
+
 -- Now we have named program:
 
 -- Append only tables so we can go back in history, see previous runs etc:
@@ -178,9 +188,7 @@ create table run (
   foreign key (command) references command (id) on delete cascade,
   foreign key (top_run) references run (id) on delete cascade,
   foreign key (parent_run) references run (id) on delete cascade,
-  foreign key (creator_run) references run (id) on delete cascade,
-  -- we must be able to associate a given subcommand to its run:
-  unique (command, parent_run)
+  foreign key (creator_run) references run (id) on delete cascade
 );
 
 create table logline (
@@ -347,6 +355,44 @@ create view list_running_sequences as
     r.stopped is null and
     -- but all started subcommands are:
     coalesce(r2.all_stopped, true);
+
+-- All for-loops still ongoing, with the past exit codes as in
+-- list_running_sequences:
+create view list_running_for_loops as
+  select
+    r.id,
+    array_agg(r2.exit_code) filter (where r2.exit_code is not null) as exit_codes
+  from run r
+  join command_for_loop c on r.command = c.command
+  left outer join run r2 on r2.parent_run = r.id
+  where
+    -- the loop itself is unfinished:
+    r.stopped is null
+  group by r.id
+  having
+    -- but all started subcommands are (or if no subcommands have started yet):
+    coalesce(bool_and(r2.id is null or r2.stopped is not null), true);
+
+-- List of run bindings a variable to a value:
+create view run_bindings as
+  -- select from let bindings:
+  select
+    r.id,
+    c.var_name,
+    v.value
+  from run r
+  join command_let c on r.command = c.command
+  join let_value v on v.run = r.id
+  union
+  -- select from for loops:
+  select
+    r.id,
+    c.var_name,
+    c.values[count(r2.*)] as value
+  from run r
+  join command_for_loop c on r.command = c.command
+  left outer join run r2 on r2.parent_run = r.id
+  group by r.id, c.var_name, c.values;
 
 create view list_running_pauses as
   select

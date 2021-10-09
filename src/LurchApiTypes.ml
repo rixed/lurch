@@ -49,6 +49,8 @@ struct
              its name allow to make use of variable expansion. Also survive
              program changes (the table of programs is append-only): *)
           program : string }
+    | ForLoop of
+        { var_name : string ; values : string array ; subcommand : t }
     [@@deriving json]
 
   and t = { id : int ; operation : operation }
@@ -62,7 +64,8 @@ struct
     | Approve { subcommand }
     | Let { subcommand }
     | Retry { subcommand }
-    | Pause { subcommand } ->
+    | Pause { subcommand }
+    | ForLoop { subcommand } ->
         let u = fold f u subcommand in
         f u cmd
     | Sequence { subcommands } ->
@@ -91,6 +94,7 @@ struct
     | If _ -> "if"
     | Pause _ -> "pause"
     | Spawn _ -> "spawn"
+    | ForLoop _ -> "for"
 
   let rec string_of_operation =
     let or_null conv = function
@@ -134,6 +138,9 @@ struct
         to_string subcommand ^")"
     | Spawn { program } ->
         "Spawn(program:"^ program ^")"
+    | ForLoop { var_name ; values ; subcommand } ->
+        "For(var_name:"^ var_name ^", values:…, subcommand:"^ to_string subcommand ^
+        ")"
 
   and to_string t =
     "{id:"^ string_of_int t.id ^ " operation:"^ string_of_operation t.operation ^"}"
@@ -276,7 +283,7 @@ struct
       stats_self : RunStats.t ;
       stats_desc : RunStats.t ;
       (* Children are reified here because it makes displaying runs much
-       * easier for the client: *)
+       * easier for the client. Ordered by creation time (== id): *)
       children : t array ;
       (* Environment in which subcommands are run, aka list of all set
        * variables: *)
@@ -397,6 +404,13 @@ struct
       exit_codes : int array ;
       step_count : int ;
       all_success : bool }
+end
+
+module ListRunningForLoops =
+struct
+  type t =
+    { run : Run.t ;
+      exit_codes : int array }
 end
 
 module ListRunningPauses =

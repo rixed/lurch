@@ -310,7 +310,8 @@ let start_terminal run =
   | Sequence _
   | Retry _
   | Pause _
-  | If _ ->
+  | If _
+  | ForLoop _ ->
       invalid_arg "start_terminal: not a terminal"
 
 let finish_run run exit_code =
@@ -409,6 +410,43 @@ let step_sequences () =
           Db.Run.insert ~top_run:seq.run.top_run ~parent_run:seq.run.id
                         subcommands.(seq.step_count).Api.Command.id in
         log.debug "Created new run #%d" run_id)))
+
+(* For each ongoing for loop, get the list of past subcommand runs so we know
+ * when to end and what value the variable should hold: *)
+let step_for_loops () =
+  Db.ListRunningForLoops.get () |>
+  Enum.iter (fun loop ->
+    log_exceptions (fun () ->
+      if loop.Api.ListRunningForLoops.run.Api.Run.started = None then
+        Db.Run.start loop.run.id ;
+      let i = Array.length loop.exit_codes in
+      (match loop.run.command.Api.Command.operation with
+      | ForLoop { var_name ; values ; subcommand } ->
+          if i > 0 && loop.exit_codes.(i-1) <> 0 then (
+            let last_exit_code = loop.exit_codes.(i-1) in
+            let line =
+              "Exiting loop with exit code "^ string_of_int last_exit_code in
+            Db.LogLine.insert loop.run.id 1 line ;
+            Db.Run.stop loop.run.id last_exit_code
+          ) else if i >= Array.length values then (
+            let line = "Finished loop" in
+            Db.LogLine.insert loop.run.id 1 line ;
+            Db.Run.stop loop.run.id 0
+          ) else (
+            (* Start the next iteration (which will make this run disappear
+             * from the list_running_for_loops view: *)
+            let var_value = Api.Run.var_expand loop.run.env values.(i) in
+            let line =
+              Printf.sprintf "Starting iteration #%d of for loop (%s=%S)"
+                (i+1) var_name var_value in
+            Db.LogLine.insert loop.run.id 1 line ;
+            let run_id =
+              Db.Run.insert ~top_run:loop.run.top_run ~parent_run:loop.run.id
+                            subcommand.id in
+            log.debug "Created a new run #%d" run_id
+          )
+      | _ ->
+          assert false)))
 
 let finish_as_subrun run subrun =
   match subrun.Api.Run.exit_code with
@@ -621,6 +659,8 @@ let step () =
   step_isolation () ;
   (* Check if some pauses are over: *)
   step_pauses () ;
+  (* Handle for loops *)
+  step_for_loops () ;
   (* Start all waiting terminals: *)
   step_waiting ()
 

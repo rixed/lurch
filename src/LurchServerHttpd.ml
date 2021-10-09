@@ -47,7 +47,8 @@ let rec check_isolation cmd =
   | Approve { subcommand }
   | Let { subcommand }
   | Retry { subcommand }
-  | Pause { subcommand } ->
+  | Pause { subcommand }
+  | ForLoop { subcommand } ->
       check_isolation subcommand
   | Sequence { subcommands } ->
       List.iter check_isolation subcommands
