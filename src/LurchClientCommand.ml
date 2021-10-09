@@ -19,7 +19,9 @@ let string_of_op_mode = function
 
 (* TODO: also pass a set of commands which help has already been printed to avoid
  * re-printing it unnecessarily *)
-let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
+(* [depth] is the level of looping construct one can break from. This is always
+ * possible to break from the running program if [depth] is 0. *)
+let rec edit_as_form ~depth ~op_mode ?(editable=true) ?dom_id command =
   (* Editable items have an id prefix of [dom_id] and suffix of [suff]: *)
   let id suff = option_map (fun pref -> pref ^"/"^ suff) dom_id in
   let refresh_msg ?add_input ?rem_input () =
@@ -31,18 +33,19 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
       | NotIsolated ->
           [ "isolate" ;
             "no-op" ; "approve" ; "sequence" ; "retry" ; "if" ; "pause" ;
-            "let" ; "spawn" ; "for" ]
+            "let" ; "spawn" ; "for" ; "break" ]
       | Isolation ->
           [ "chroot" ; "docker" ; "let" ]
       | Isolated ->
           [ "no-op" ; "exec" ; "approve" ; "sequence" ; "retry" ; "if" ;
-            "pause" ; "let" ; "for" ]
+            "pause" ; "let" ; "for" ; "break" ]
     else [
       (* This [edit] function can also be used to view any command out of
        * context so spare the console from spurious error messages in that
        * case: *)
       "isolate" ; "chroot" ; "docker" ; "no-op" ; "exec" ; "approve" ;
-      "sequence" ; "retry" ; "if" ; "pause" ; "let" ; "spawn" ; "for"
+      "sequence" ; "retry" ; "if" ; "pause" ; "let" ; "spawn" ; "for" ;
+      "break"
     ] in
   let label_of_operation op =
     let l = Api.Command.name_of_operation op in
@@ -84,10 +87,10 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
           p [ text "This is the required first command, and will build an isolated \
                     environment in which to run some more commands." ] ;
           h3 [ text "Isolation type" ] ;
-          edit_as_form ~op_mode:Isolation ~editable ?dom_id:(id "builder")
+          edit_as_form ~depth ~op_mode:Isolation ~editable ?dom_id:(id "builder")
             builder ;
           h3 [ text "Isolated command" ] ;
-          edit_as_form ~op_mode:Isolated ~editable ?dom_id:(id "subcommand")
+          edit_as_form ~depth ~op_mode:Isolated ~editable ?dom_id:(id "subcommand")
             subcommand ]
     | Chroot { template } ->
         div [
@@ -136,7 +139,7 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
           p [ radios ?id:(id "autosuccess") ~label:"On timeout:" ~editable
                 [ "proceed", "t" ; "fail", "f" ]
                 (Lang.sql_string_of_bool autosuccess) ] ;
-          edit_as_form ~op_mode ~editable ?dom_id:(id "subcommand")
+          edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "subcommand")
             subcommand ]
     | Let { var_name ; default ; subcommand ; comment } ->
         div [
@@ -149,19 +152,19 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
                 ~editable var_name ] ;
           p [ input_text ?id:(id "default") ~label:"Default Value:"
                 ~editable default ] ;
-          edit_as_form ~op_mode ~editable ?dom_id:(id "subcommand")
+          edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "subcommand")
             subcommand ]
     | Sequence { subcommands } ->
         let lis =
           List.mapi (fun i subcommand ->
             li [
-              edit_as_form ~op_mode ~editable ?dom_id:(id (string_of_int i))
+              edit_as_form ~depth ~op_mode ~editable ?dom_id:(id (string_of_int i))
                 subcommand ]
           ) subcommands in
         let lis =
           if editable then lis @ [
             li [
-              edit_as_form ~op_mode ~editable
+              edit_as_form ~depth ~op_mode ~editable
                 ?dom_id:(id (string_of_int (List.length subcommands)))
                 { operation = Nop { exit_code = 0 } ; id = 0 } ] ]
           else lis in
@@ -173,7 +176,7 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
           p [ text "Execute the given subcommand up to a given number of times \
                     until it succeeds." ] ;
           h3 [ text "Command" ] ;
-          edit_as_form ~op_mode ~editable ?dom_id:(id "subcommand")
+          edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "subcommand")
             subcommand ;
           input_text ?id:(id "up_to") ~label:"Up to:" ~units:"times" ~editable
             ~placeholder:"number…" (string_of_int up_to) ]
@@ -183,11 +186,11 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
                     or the alternative, depending on the success of the \
                     condition." ] ;
           h3 [ text "Condition" ] ;
-          edit_as_form ~op_mode ~editable ?dom_id:(id "condition") condition ;
+          edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "condition") condition ;
           h3 [ text "On Success" ] ;
-          edit_as_form ~op_mode ~editable ?dom_id:(id "consequent") consequent ;
+          edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "consequent") consequent ;
           h3 [ text "On Failure" ] ;
-          edit_as_form ~op_mode ~editable ?dom_id:(id "alternative") alternative ]
+          edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "alternative") alternative ]
     | Pause { duration ; subcommand } ->
         div [
           p [ text "Pause for the given amount of time before starting the \
@@ -195,7 +198,7 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
           input_text ?id:(id "duration") ~label:"Duration:" ~units:"seconds" ~editable
             ~placeholder:"seconds…" (string_of_float duration) ;
           h3 [ text "Command" ] ;
-          edit_as_form ~op_mode ~editable ?dom_id:(id "subcommand") subcommand ]
+          edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "subcommand") subcommand ]
     | Spawn { program } ->
         div [
           p [ text "Start the specified program. Do not wait for its \
@@ -214,10 +217,18 @@ let rec edit_as_form ~op_mode ?(editable=true) ?dom_id command =
             ~on_rem:(fun i -> refresh_msg ~rem_input:(id "values", i) ())
             (Array.to_list values) ;
           h3 [ text "Body" ] ;
-          edit_as_form ~op_mode ~editable ?dom_id:(id "subcommand") subcommand ]) ]
+          edit_as_form ~depth:(depth+1) ~op_mode ~editable
+            ?dom_id:(id "subcommand") subcommand ]
+    | Break { depth = d } ->
+        div [
+          p [ text "Exit the current loop (or program). If depth > 0, exit \
+                    that many loops." ] ;
+          let depths = List.init (depth + 1) string_of_int in
+          select ~editable ?id:(id "depth")
+                 ~selected:(string_of_int d) depths ]) ]
 
 let edit ~editable ?dom_id command =
-  edit_as_form ~op_mode:NotIsolated ~editable ?dom_id command
+  edit_as_form ~depth:0 ~op_mode:NotIsolated ~editable ?dom_id command
 
 (* The reverse of edit_as_form (fail with an exception)
  * When a value is missing a default is assumed. This is required when updating
@@ -370,6 +381,9 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
         and values = value_strings "values"
         and subcommand = opt_subcommand "subcommand" in
         Api.Command.ForLoop { var_name ; values ; subcommand }
+    | "break" ->
+        let depth = int_of_string (value ~def:"0" "depth") in
+        Api.Command.Break { depth }
     | _ ->
         invalid_arg "command_of_form_exc" in
   Api.Command.{ id = 0 ; operation }
@@ -530,10 +544,12 @@ let rec view run =
         div [
           p [ text ("Spawn program "^ program ^".") ] ]
     | ForLoop { var_name ; values ; subcommand } ->
-        (* Have to display all iterations: *)
         div [
-          p [ text ("for "^ var_name ^" in "^ array_join ", " values ^" do:") ] ;
-          view_subcommand subcommand ]) ;
+          p [ text ("For "^ var_name ^" in "^ array_join ", " values ^" do:") ] ;
+          view_subcommand subcommand ]
+    | Break { depth } ->
+        div [
+          p [ text ("Break out of "^ string_of_int depth ^" loops") ] ]) ;
     (match run.started, run.pid, run.stopped with
     | None, _, _ ->
         p ~a:[ class_ "status" ]

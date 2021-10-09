@@ -51,6 +51,7 @@ struct
           program : string }
     | ForLoop of
         { var_name : string ; values : string array ; subcommand : t }
+    | Break of { depth : int }
     [@@deriving json]
 
   and t = { id : int ; operation : operation }
@@ -58,7 +59,7 @@ struct
 
   let rec fold f u cmd =
     match cmd.operation with
-    | Nop _ | Chroot _ | Docker _ | Exec _ | Spawn _ ->
+    | Nop _ | Chroot _ | Docker _ | Exec _ | Spawn _ | Break _ ->
         f u cmd
     | Isolate { subcommand }
     | Approve { subcommand }
@@ -95,6 +96,7 @@ struct
     | Pause _ -> "pause"
     | Spawn _ -> "spawn"
     | ForLoop _ -> "for"
+    | Break _ -> "break"
 
   let rec string_of_operation =
     let or_null conv = function
@@ -141,6 +143,8 @@ struct
     | ForLoop { var_name ; values ; subcommand } ->
         "For(var_name:"^ var_name ^", values:…, subcommand:"^ to_string subcommand ^
         ")"
+    | Break { depth } ->
+        "Break("^ string_of_int depth ^")"
 
   and to_string t =
     "{id:"^ string_of_int t.id ^ " operation:"^ string_of_operation t.operation ^"}"

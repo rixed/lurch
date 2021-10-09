@@ -144,7 +144,7 @@ struct
                     "command_exec" ; "command_approve" ; "command_sequence" ;
                     "command_retry" ; "command_if" ; "command_nop" ;
                     "command_pause" ; "command_let" ; "command_spawn" ;
-                    "command_for_loop" |] in
+                    "command_for_loop" ; "command_break" |] in
     let operation =
       array_find_mapi (fun table_num ->
         let params = [| string_of_int id |] in
@@ -214,6 +214,9 @@ struct
                 var_name = getv 1 ;
                 values = array (getv 2) ;
                 subcommand = get (int_of_string (getv 3)) }
+          | 13 ->
+              Api.Command.Break {
+                depth = int_of_string (getv 1) }
           | _ ->
               assert false)
         )
@@ -280,6 +283,8 @@ struct
           [| "var_name", var_name ;
              "values",  sql_of_string_array values ;
              "subcommand", insert_or_update subcommand |]
+      | Break { depth } ->
+          "command_break", [| "depth", string_of_int depth |]
     in
     let params = Array.map snd field_params in
     let command_id =

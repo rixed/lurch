@@ -133,6 +133,12 @@ create table command_for_loop (
   foreign key (subcommand) references command (id)
 );
 
+create table command_break (
+  command int,
+  depth int not null,
+  foreign key (command) references command (id) on delete cascade
+);
+
 -- Now we have named program:
 
 -- Append only tables so we can go back in history, see previous runs etc:
@@ -323,7 +329,8 @@ create view list_waiting_terminals as
   join (
     select command from command_exec union
     select command from command_nop union
-    select command from command_spawn
+    select command from command_spawn union
+    select command from command_break
   ) c on r.command = c.command
   where
     r.started is null;

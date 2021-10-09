@@ -163,6 +163,8 @@ let command_of_string str =
     | Lst [ Sym "for" ; Sym var_name ; Lst values ; s ] ->
         let values = List.map string_of_str values |> Array.of_list in
         ForLoop { var_name ; values ; subcommand = command_of_sexpr s }
+    | Lst [ Sym "break" ; Sym depth ] ->
+        Break { depth = int_of_string depth }
     | x -> raise (Invalid_expression x)
   and command_of_sexpr s =
     { id = 0 ; operation = operation_of_sexpr s }
@@ -228,6 +230,8 @@ let string_of_command ?max_depth cmd =
         let values = List.map to_str (Array.to_list values) in
         Lst [ Sym "for" ; Sym var_name ; Lst values ;
               sexpr_of_command ?max_depth subcommand ]
+    | Break { depth } ->
+        Lst [ Sym "break" ; Sym (string_of_int depth) ]
   and sexpr_of_command ?max_depth c =
     match max_depth with
     | Some d when d <= 0 -> Str "…"

@@ -303,6 +303,27 @@ let start_terminal run =
             Db.LogLine.insert run.id 1 line ;
             0 in
       Db.Run.stop run.id exit_code
+  | Break { depth } ->
+      Db.Run.start run.id ;
+      let rec loop run depth =
+        if depth >= 0 then (
+          log.debug "breaking out of run #%d, parent_run is #%d"
+            run.Api.Run.id run.parent_run ;
+          if run.parent_run <> run.id then (
+            let parent = Db.Run.get run.parent_run in
+            Db.LogLine.insert parent.Api.Run.id 1 "Breaking out" ;
+            (* Whatever the parent is, terminate it (with success status): *)
+            Db.Run.stop parent.id 0 ;
+            let depth =
+              match parent.command with
+              | Api.Command.{ operation = ForLoop _ } -> depth - 1
+              | _ -> depth in
+            loop parent depth
+          ) (* else this command has been stopped already and we can end here *)
+        )
+      in
+      loop run depth ;
+      Db.Run.stop run.id 0
   (* Those are not terminals: *)
   | Isolate _
   | Approve _
