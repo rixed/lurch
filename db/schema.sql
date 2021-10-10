@@ -416,11 +416,13 @@ create view run_bindings as
 create view list_running_pauses as
   select
     r.id as run,
+    r2.id as subrun,
     c.duration,
     c.subcommand
   from run r
   join command_pause c on c.command = r.command
-  where r.stopped is null;
+  left outer join run r2 on r2.parent_run = r.id
+  where r.stopped is null and (r2.id is null or r2.exit_code is not null);
 
 create view list_running_waits as
   select

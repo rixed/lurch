@@ -439,6 +439,7 @@ module ListRunningPauses =
 struct
   type t =
     { run : Run.t ;
+      subrun : Run.t option ;
       duration : float ;
       subcommand : int }
 end

@@ -348,15 +348,29 @@ let step_pauses () =
   let now = Unix.gettimeofday () in
   Db.ListRunningPauses.get () |>
   Enum.iter (fun pause ->
-    match pause.Api.ListRunningPauses.run.started with
-    | Some started ->
-        if now -. started >= pause.duration then (
-          Db.LogLine.insert pause.run.id 1 "Pause is over, proceeding" ;
-          Db.Run.stop pause.run.id 0)
-    | None ->
-        let line = "Pause for "^ string_of_float pause.duration ^"s" in
-        Db.LogLine.insert pause.run.id 1 line ;
-        Db.Run.start pause.run.id)
+    log_exceptions (fun () ->
+      match pause.Api.ListRunningPauses.run.started with
+      | Some started ->
+          (match pause.subrun with
+          | None ->
+              if now -. started >= pause.duration then (
+                let subrun =
+                  Db.Run.insert ~top_run:pause.run.top_run ~parent_run:pause.run.id
+                                pause.subcommand in
+                let line = "Pause is over, starting subcommand as #"^
+                             string_of_int subrun in
+                Db.LogLine.insert pause.run.id 1 line)
+          | Some Api.Run.{ id ; exit_code = Some exit_code } ->
+              let line = "Subcommand #"^ string_of_int id ^" exited" in
+              Db.LogLine.insert pause.run.id 1 line ;
+              Db.Run.stop pause.run.id exit_code
+          | _ ->
+              (* Because of list_running_pauses: *)
+              assert false)
+      | None ->
+          let line = "Pause for "^ string_of_float pause.duration ^"s" in
+          Db.LogLine.insert pause.run.id 1 line ;
+          Db.Run.start pause.run.id))
 
 let step_waits () =
   let tm = Unix.(localtime (time ())) in
@@ -578,16 +592,14 @@ let step_lets () =
           let line =
             "Starting let-binding subcommand as #"^ string_of_int subrun in
           Db.LogLine.insert run.id 1 line
-      | Some subrun ->
-          (match subrun.Api.Run.exit_code with
-          | Some exit_code ->
-              let line =
-                "Stopping let-binding with exit code "^ string_of_int exit_code in
-              Db.LogLine.insert run.id 1 line ;
-              Db.Run.stop run.id exit_code
-          | None ->
-              (* Because of list_pending_lets definition: *)
-              assert false)))
+      | Some Api.Run.{ exit_code = Some exit_code } ->
+          let line =
+            "Stopping let-binding with exit code "^ string_of_int exit_code in
+          Db.LogLine.insert run.id 1 line ;
+          Db.Run.stop run.id exit_code
+      | Some _ ->
+          (* Because of list_pending_lets definition: *)
+          assert false))
 
 (* The isolation commands can take a while so we run them asynchronously
  * and wait for their specific entry in their additional tables to proceed

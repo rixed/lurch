@@ -834,15 +834,17 @@ struct
     let cnx = get_cnx () in
     let res =
       cnx#exec ~expect:[Tuples_ok]
-        "select run, duration, subcommand from list_running_pauses" in
+        "select run, subrun, duration, subcommand from list_running_pauses" in
     log.debug "%d pauses are unfinished." res#ntuples ;
     Enum.init res#ntuples (fun i ->
       let getv conv j = conv (res#getvalue i j) in
+      let getn conv j = if res#getisnull i j then None else Some (getv conv j) in
       log.debug "Got tuple %a" (Array.print String.print) (res#get_tuple i) ;
       Api.ListRunningPauses.{
         run = Run.get (getv int_of_string 0) ;
-        duration = getv float_of_string 1 ;
-        subcommand = getv int_of_string 2 })
+        subrun = Option.map Run.get (getn int_of_string 1) ;
+        duration = getv float_of_string 2 ;
+        subcommand = getv int_of_string 3 })
 end
 
 module ListRunningWaits =
