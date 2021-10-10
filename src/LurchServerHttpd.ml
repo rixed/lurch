@@ -48,6 +48,7 @@ let rec check_isolation cmd =
   | Let { subcommand }
   | Retry { subcommand }
   | Pause { subcommand }
+  | Wait { subcommand }
   | ForLoop { subcommand } ->
       check_isolation subcommand
   | Sequence { subcommands } ->

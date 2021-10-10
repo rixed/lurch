@@ -117,6 +117,18 @@ create table command_pause (
   foreign key (subcommand) references command (id)
 );
 
+create table command_wait (
+  command int,
+  minute int array not null default '{}',
+  hour int array not null default '{}',
+  mday int array not null default '{}',
+  month int array not null default '{}',
+  wday int array not null default '{}',
+  subcommand int not null,
+  foreign key (command) references command (id) on delete cascade,
+  foreign key (subcommand) references command (id)
+);
+
 create table command_spawn (
   command int,
   program text not null,
@@ -409,6 +421,17 @@ create view list_running_pauses as
   from run r
   join command_pause c on c.command = r.command
   where r.stopped is null;
+
+create view list_running_waits as
+  select
+    r.id as run,
+    r2.id as subrun,
+    c.minute, c.hour, c.mday, c.month, c.wday,
+    c.subcommand
+  from run r
+  join command_wait c on c.command = r.command
+  left outer join run r2 on r2.parent_run = r.id
+  where r.stopped is null and (r2.id is null or r2.exit_code is not null) ;
 
 create view list_running_ifs as
   select

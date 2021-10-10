@@ -121,6 +121,9 @@ let command_of_string str =
   let float_of_sym = function
     | Sym s -> float_of_string s
     | _ -> invalid_arg "float_of_sym" in
+  let int_of_sym = function
+    | Sym s -> int_of_string s
+    | _ -> invalid_arg "int_of_sym" in
   let string_of_str = function
     | Str s -> s
     | _ -> invalid_arg "string_of_str" in
@@ -158,6 +161,14 @@ let command_of_string str =
     | Lst [ Sym "pause" ; Sym duration ; s ] ->
         Pause { duration = float_of_string duration ;
                 subcommand = command_of_sexpr s }
+    | Lst [ Sym "wait" ; Lst minute ; Lst hour ; Lst mday ; Lst month ;
+            Lst wday ; s ] ->
+        Wait { minute = List.map int_of_sym minute ;
+               hour = List.map int_of_sym hour ;
+               mday = List.map int_of_sym mday ;
+               month = List.map int_of_sym month ;
+               wday = List.map int_of_sym wday ;
+               subcommand = command_of_sexpr s }
     | Lst [ Sym "spawn" ; Str program ] ->
         Spawn { program }
     | Lst [ Sym "for" ; Sym var_name ; Lst values ; s ] ->
@@ -178,6 +189,7 @@ let string_of_command ?max_depth cmd =
     | None -> Sym "null"
     | Some v -> conv v in
   let sym_of_float f = Sym (string_of_float f) in
+  let sym_of_int i = Sym (string_of_int i) in
   let to_str s = Str s in
   let rec sexpr_of_operation ?max_depth = function
     | Nop { exit_code } ->
@@ -223,6 +235,14 @@ let string_of_command ?max_depth cmd =
     | Pause { duration ; subcommand } ->
         Lst [ Sym "pause" ;
               Sym (string_of_float duration) ;
+              sexpr_of_command ?max_depth subcommand ]
+    | Wait { minute ; hour ; mday ; month ; wday ; subcommand } ->
+        Lst [ Sym "wait" ;
+              Lst (List.map sym_of_int minute) ;
+              Lst (List.map sym_of_int hour) ;
+              Lst (List.map sym_of_int mday) ;
+              Lst (List.map sym_of_int month) ;
+              Lst (List.map sym_of_int wday) ;
               sexpr_of_command ?max_depth subcommand ]
     | Spawn { program } ->
         Lst [ Sym "spawn" ; Str program ]

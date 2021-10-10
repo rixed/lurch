@@ -33,19 +33,19 @@ let rec edit_as_form ~depth ~op_mode ?(editable=true) ?dom_id command =
       | NotIsolated ->
           [ "isolate" ;
             "no-op" ; "approve" ; "sequence" ; "retry" ; "if" ; "pause" ;
-            "let" ; "spawn" ; "for" ; "break" ]
+            "wait" ; "let" ; "spawn" ; "for" ; "break" ]
       | Isolation ->
           [ "chroot" ; "docker" ; "let" ]
       | Isolated ->
           [ "no-op" ; "exec" ; "approve" ; "sequence" ; "retry" ; "if" ;
-            "pause" ; "let" ; "for" ; "break" ]
+            "pause" ; "wait" ; "let" ; "for" ; "break" ]
     else [
       (* This [edit] function can also be used to view any command out of
        * context so spare the console from spurious error messages in that
        * case: *)
       "isolate" ; "chroot" ; "docker" ; "no-op" ; "exec" ; "approve" ;
-      "sequence" ; "retry" ; "if" ; "pause" ; "let" ; "spawn" ; "for" ;
-      "break"
+      "sequence" ; "retry" ; "if" ; "pause" ; "wait" ; "let" ; "spawn" ;
+      "for" ; "break"
     ] in
   let label_of_operation op =
     let l = Api.Command.name_of_operation op in
@@ -199,6 +199,23 @@ let rec edit_as_form ~depth ~op_mode ?(editable=true) ?dom_id command =
             ~placeholder:"seconds…" (string_of_float duration) ;
           h3 [ text "Command" ] ;
           edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "subcommand") subcommand ]
+    | Wait { minute ; hour ; mday ; month ; wday ; subcommand } ->
+        let input_time k label vals =
+          input_text_multi ?id:(id k) ~editable ~label
+            ~on_add:(refresh_msg ~add_input:(id k, "0") ())
+            ~on_rem:(fun i -> refresh_msg ~rem_input:(id k, i) ())
+            (List.map string_of_int vals) in
+        div [
+          p [ text "Wait for the next occurrence of a specific point in time \
+                    before executing the specified command (à la crontab)." ] ;
+          input_time "minute" "Minutes:" minute ;
+          input_time "hour" "Hours:" hour ;
+          input_time "mday" "Days of month:" mday ;
+          input_time "month" "Months:" month ;
+          input_time "wday" "Days of week (0=Sun):" wday ;
+          h3 [ text "Then:" ] ;
+          edit_as_form ~depth:(depth+1) ~op_mode ~editable
+            ?dom_id:(id "subcommand") subcommand ]
     | Spawn { program } ->
         div [
           p [ text "Start the specified program. Do not wait for its \
@@ -305,6 +322,10 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
     | None ->
         (* Default to an empty array *)
         [||] in
+  let value_ints suff =
+    value_strings suff |>
+    Array.to_list |>
+    List.map int_of_string in
   let value_opt suff =
     match value ~def:"" suff with
     | "" -> None
@@ -373,6 +394,14 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
         let subcommand = opt_subcommand "subcommand"
         and duration = float_of_string (value ~def:"0" "duration") in
         Api.Command.Pause { duration ; subcommand }
+    | "wait" ->
+        let minute = value_ints "minute"
+        and hour = value_ints "hour"
+        and mday = value_ints "mday"
+        and month = value_ints "month"
+        and wday = value_ints "wday"
+        and subcommand = opt_subcommand "subcommand" in
+        Api.Command.Wait { minute ; hour ; mday ; month ; wday ; subcommand }
     | "spawn" ->
         let program = value ~def:"" "program" in
         Api.Command.Spawn { program }
@@ -529,15 +558,30 @@ let rec view run =
           view_subcommand subcommand ]
     | If { condition ; consequent ; alternative } ->
         div [
-          p [ text "if:" ] ;
+          p [ text "If:" ] ;
           view_subcommand condition ;
-          p [ text "then:" ] ;
+          p [ text "Then:" ] ;
           view_subcommand consequent ;
-          p [ text "else:" ] ;
+          p [ text "Else:" ] ;
           view_subcommand alternative ]
     | Pause { duration ; subcommand } ->
         div [
           p [ text ("Pause for "^ string_of_float duration ^" seconds, then:") ] ;
+          view_subcommand subcommand ]
+    | Wait { minute ; hour ; mday ; month ; wday ; subcommand } ->
+        let disp_times label vals =
+          let line =
+            label ^": "^ String.concat ", " (List.map string_of_int vals) in
+          li [ text line ] in
+        div [
+          p [ text "Wait until next occurrence of:" ] ;
+          ul [
+            disp_times "Minutes" minute ;
+            disp_times "Hours" hour ;
+            disp_times "Day of month" mday ;
+            disp_times "Month" month ;
+            disp_times "Day of week (0=Sun)" wday ] ;
+          p [ text "Then:" ] ;
           view_subcommand subcommand ]
     | Spawn { program } ->
         let program = Api.Run.var_expand run.env program in

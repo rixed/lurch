@@ -331,6 +331,7 @@ let start_terminal run =
   | Sequence _
   | Retry _
   | Pause _
+  | Wait _
   | If _
   | ForLoop _ ->
       invalid_arg "start_terminal: not a terminal"
@@ -356,6 +357,37 @@ let step_pauses () =
         let line = "Pause for "^ string_of_float pause.duration ^"s" in
         Db.LogLine.insert pause.run.id 1 line ;
         Db.Run.start pause.run.id)
+
+let step_waits () =
+  let tm = Unix.(localtime (time ())) in
+  Db.ListRunningWaits.get () |>
+  Enum.iter (fun wait ->
+    log_exceptions (fun () ->
+      if wait.Api.ListRunningWaits.run.Api.Run.started = None then
+        Db.Run.start wait.run.id ;
+      match wait.subrun with
+      | None ->
+          let time_match cur exp =
+            exp = [] || List.mem cur exp in
+          if time_match tm.Unix.tm_min wait.minute &&
+             time_match tm.Unix.tm_hour wait.hour &&
+             time_match tm.Unix.tm_mday wait.mday &&
+             time_match tm.Unix.tm_mon wait.month &&
+             time_match tm.Unix.tm_wday wait.wday then (
+            let subrun =
+              Db.Run.insert ~top_run:wait.run.top_run ~parent_run:wait.run.id
+                            wait.subcommand in
+            let line = "Reached time specifications, starting subcommand as #"^
+                         string_of_int subrun in
+            Db.LogLine.insert wait.run.id 1 line)
+      | Some Api.Run.{ exit_code = Some exit_code } ->
+          let line = "Subcommand finished with exit_code "^
+                       string_of_int exit_code in
+          Db.LogLine.insert wait.run.id 1 line ;
+          Db.Run.stop wait.run.id exit_code
+      | Some _ ->
+          (* Because of list_pending_lets definition: *)
+          assert false))
 
 let step_waiting () =
   Db.ListWaitingTerminals.get () |>
@@ -680,6 +712,8 @@ let step () =
   step_isolation () ;
   (* Check if some pauses are over: *)
   step_pauses () ;
+  (* Check is some waits are over: *)
+  step_waits () ;
   (* Handle for loops *)
   step_for_loops () ;
   (* Start all waiting terminals: *)

@@ -5,6 +5,9 @@ open LurchServerLib
 module Api = LurchApiTypes
 module Lang = LurchCommandLanguage
 
+(*$inject
+  open Batteries *)
+
 let () =
   Printexc.register_printer (function
     | Error e ->
@@ -78,11 +81,13 @@ let sql_array_unquote s =
   ) else
     s
 
-let sql_of_string_array a =
-  (* TODO: BatArray.join *)
-  "{"^ String.join "," (Array.to_list (Array.map sql_array_quote a)) ^"}"
+let sql_of_string_list conv l =
+  "{"^ String.join "," (List.map conv l) ^"}"
 
-let list = function
+let sql_of_string_array conv =
+  sql_of_string_list conv % Array.to_list
+
+let list conv = function
   | "" | "{}" ->
       []
   | s ->
@@ -108,28 +113,28 @@ let list = function
             loop lst depth start (i + 1) in
       loop [] 0 0 0 |>
       List.fold_left (fun lst s ->
-        sql_array_unquote s :: lst
+        conv (sql_array_unquote s) :: lst
       ) []
 
-(*$= list & ~printer:BatPervasives.dump
-  ["foo"] (list "{foo}")
-  ["foo" ; "bar"] (list "{foo,bar}")
-  ["{foo,bar}"] (list "{{foo,bar}}")
+(*$= list & ~printer:dump
+  ["foo"] (list identity "{foo}")
+  ["foo" ; "bar"] (list identity "{foo,bar}")
+  ["{foo,bar}"] (list identity "{{foo,bar}}")
 *)
 
 let get_env s =
-  list s |>
+  list identity s |>
   List.map (fun a ->
-    match list a with
+    match list identity a with
     | [ n ; v ] -> (n, v)
     | _ -> assert false)
 
-(*$= get_env & ~printer:BatPervasives.dump
+(*$= get_env & ~printer:dump
   [ "FOO", "Bar" ] (get_env "{{FOO,Bar}}")
 *)
 
-let array =
-  Array.of_list % list
+let array conv =
+  Array.of_list % (list conv)
 
 let bool_of_string = function
   | "t" -> true
@@ -144,7 +149,7 @@ struct
                     "command_exec" ; "command_approve" ; "command_sequence" ;
                     "command_retry" ; "command_if" ; "command_nop" ;
                     "command_pause" ; "command_let" ; "command_spawn" ;
-                    "command_for_loop" ; "command_break" |] in
+                    "command_for_loop" ; "command_break" ; "command_wait" |] in
     let operation =
       array_find_mapi (fun table_num ->
         let params = [| string_of_int id |] in
@@ -173,8 +178,8 @@ struct
           | 3 ->
               Api.Command.Exec
                 { pathname = getv 1 ;
-                  args = array (getv 2) ;
-                  env = array (getv 3) ;
+                  args = array identity (getv 2) ;
+                  env = array identity (getv 3) ;
                   timeout = getn float_of_string 4 }
           | 4 ->
               Api.Command.Approve {
@@ -184,7 +189,8 @@ struct
                 autosuccess = Lang.sql_bool_of_string (getv 4) }
           | 5 ->
               Api.Command.Sequence
-                { subcommands = List.map (get % int_of_string) (list (getv 1)) }
+                { subcommands = List.map (get % int_of_string)
+                                         (list identity (getv 1)) }
           | 6 ->
               Api.Command.Retry
                 { subcommand = get (int_of_string (getv 1)) ;
@@ -212,11 +218,19 @@ struct
           | 12 ->
               Api.Command.ForLoop {
                 var_name = getv 1 ;
-                values = array (getv 2) ;
+                values = array identity (getv 2) ;
                 subcommand = get (int_of_string (getv 3)) }
           | 13 ->
               Api.Command.Break {
                 depth = int_of_string (getv 1) }
+          | 14 ->
+              Api.Command.Wait {
+                minute = list int_of_string (getv 1) ;
+                hour = list int_of_string (getv 2) ;
+                mday = list int_of_string (getv 3) ;
+                month = list int_of_string (getv 4) ;
+                wday = list int_of_string (getv 5) ;
+                subcommand = get (int_of_string (getv 6)) }
           | _ ->
               assert false)
         )
@@ -244,8 +258,8 @@ struct
       | Exec { pathname ; args ; env ; timeout } ->
           "command_exec",
           [| "pathname", pathname ;
-             "args", sql_of_string_array args ;
-             "env", sql_of_string_array env ;
+             "args", sql_of_string_array sql_array_quote args ;
+             "env", sql_of_string_array sql_array_quote env ;
              "timeout", or_null string_of_float timeout |]
       | Approve { subcommand ; timeout ; comment ; autosuccess } ->
           "command_approve",
@@ -276,12 +290,20 @@ struct
           "command_pause",
           [| "duration", string_of_float duration ;
              "subcommand", insert_or_update subcommand |]
+      | Wait { minute ; hour ; mday ; month ; wday ; subcommand } ->
+          "command_wait",
+          [| "minute", sql_of_string_list string_of_int minute ;
+             "hour", sql_of_string_list string_of_int hour ;
+             "mday", sql_of_string_list string_of_int mday ;
+             "month", sql_of_string_list string_of_int month ;
+             "wday", sql_of_string_list string_of_int wday ;
+             "subcommand", insert_or_update subcommand |]
       | Spawn { program } ->
           "command_spawn", [| "program", program |]
       | ForLoop { var_name ; values ; subcommand } ->
           "command_for_loop",
           [| "var_name", var_name ;
-             "values",  sql_of_string_array values ;
+             "values",  sql_of_string_array sql_array_quote values ;
              "subcommand", insert_or_update subcommand |]
       | Break { depth } ->
           "command_break", [| "depth", string_of_int depth |]
@@ -398,7 +420,7 @@ struct
           mem_usr = getn int_of_string 12 ;
           mem_sys = getn int_of_string 13 } ;
       stats_desc = DescStats.get id ;
-      children = array (getv identity 14) |>
+      children = array identity (getv identity 14) |>
                  Array.map (get % int_of_string) ;
       confirmation_msg = getn identity 15 ;
       chroot_path = getn identity 16 ;
@@ -783,7 +805,7 @@ struct
       log.debug "Got tuple %a" (Array.print String.print) (res#get_tuple i) ;
       Api.ListRunningSequences.{
         run = Run.get (getv int_of_string 0) ;
-        exit_codes = array (getv identity 1) |>
+        exit_codes = array identity (getv identity 1) |>
                      Array.map int_of_string ;
         step_count = getv int_of_string 2 ;
         all_success = getv bool_of_string 3 })
@@ -802,7 +824,7 @@ struct
       log.debug "Got tuple %a" (Array.print String.print) (res#get_tuple i) ;
       Api.ListRunningForLoops.{
         run = Run.get (getv int_of_string 0) ;
-        exit_codes = array (getv identity 1) |>
+        exit_codes = array identity (getv identity 1) |>
                      Array.map int_of_string })
 end
 
@@ -821,6 +843,29 @@ struct
         run = Run.get (getv int_of_string 0) ;
         duration = getv float_of_string 1 ;
         subcommand = getv int_of_string 2 })
+end
+
+module ListRunningWaits =
+struct
+  let get () =
+    let cnx = get_cnx () in
+    let res =
+      cnx#exec ~expect:[Tuples_ok]
+        "select run, subrun, minute, hour, mday, month, wday, subcommand
+         from list_running_waits" in
+    log.debug "%d waits are unfinished." res#ntuples ;
+    Enum.init res#ntuples (fun i ->
+      let getv conv j = conv (res#getvalue i j) in
+      let getn conv j = if res#getisnull i j then None else Some (getv conv j) in
+      Api.ListRunningWaits.{
+        run = Run.get (getv int_of_string 0) ;
+        subrun = Option.map Run.get (getn int_of_string 1) ;
+        minute = getv (list int_of_string) 2 ;
+        hour = getv (list int_of_string) 3 ;
+        mday = getv (list int_of_string) 4 ;
+        month = getv (list int_of_string) 5 ;
+        wday = getv (list int_of_string) 6 ;
+        subcommand = getv int_of_string 7 })
 end
 
 module ListRunningIfs =

@@ -44,6 +44,13 @@ struct
         { condition : t ; consequent : t ; alternative : t }
     | Pause of
         { duration : float ; subcommand : t }
+    | Wait of
+        { minute : int list ;  (* An empty list means all *)
+          hour : int list ;
+          mday : int list ;
+          month : int list ;
+          wday : int list ;
+          subcommand : t }
     | Spawn of
         { (* Better than taking the run_id of the program to spawn, storing
              its name allow to make use of variable expansion. Also survive
@@ -66,6 +73,7 @@ struct
     | Let { subcommand }
     | Retry { subcommand }
     | Pause { subcommand }
+    | Wait { subcommand }
     | ForLoop { subcommand } ->
         let u = fold f u subcommand in
         f u cmd
@@ -94,6 +102,7 @@ struct
     | Retry _ -> "retry"
     | If _ -> "if"
     | Pause _ -> "pause"
+    | Wait _ -> "wait"
     | Spawn _ -> "spawn"
     | ForLoop _ -> "for"
     | Break _ -> "break"
@@ -138,6 +147,15 @@ struct
     | Pause { duration ; subcommand } ->
         "Pause(duration:"^ string_of_float duration ^", subcommand:"^
         to_string subcommand ^")"
+    | Wait { minute ; hour ; mday ; month ; wday ; subcommand } ->
+        let string_of_times l =
+          String.concat "," (List.map string_of_int l) in
+        "Wait("^ string_of_times minute ^" "^
+                 string_of_times hour ^" "^
+                 string_of_times mday ^" "^
+                 string_of_times month ^" "^
+                 string_of_times wday ^
+        ", subcommand:"^ to_string subcommand ^")"
     | Spawn { program } ->
         "Spawn(program:"^ program ^")"
     | ForLoop { var_name ; values ; subcommand } ->
@@ -422,6 +440,19 @@ struct
   type t =
     { run : Run.t ;
       duration : float ;
+      subcommand : int }
+end
+
+module ListRunningWaits =
+struct
+  type t =
+    { run : Run.t ;
+      subrun : Run.t option ;
+      minute : int list ;
+      hour : int list ;
+      mday : int list ;
+      month : int list ;
+      wday : int list ;
       subcommand : int }
 end
 
