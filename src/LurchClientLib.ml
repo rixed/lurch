@@ -201,7 +201,8 @@ let input_text_multi ?id ?key ?(a=[]) ?(editable=true) ?label ?on_add ?on_rem
   let lines =
     List.mapi (fun i value ->
       let sub_id = option_map (fun pref -> pref ^"/"^ string_of_int i) id in
-      let inp = input_text ?id:sub_id ~editable ?placeholder value in
+      let key = (key |? "") ^ (sub_id |? string_of_int i) in
+      let inp = input_text ~key ?id:sub_id ~editable ?placeholder value in
       match editable, on_rem with
       | true, Some msg -> p [ inp ; button "rem" (msg i) ]
       | _ -> inp
