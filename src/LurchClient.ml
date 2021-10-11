@@ -22,9 +22,9 @@ let view_of_location st =
   | ListProgramsAndRun lst ->
       Views.list_programs_and_run ~waiting lst
   | ShowProgram { program ; editable ; last_runs } ->
-      Views.program_editor ~waiting ~editable program last_runs
-  | ConfirmDeleteProgram { program } ->
-      Views.program_confirm_deletion program
+      Views.program_editor ~waiting ~editable program last_runs st.location
+  | ConfirmDeleteProgram { program ; back } ->
+      Views.program_confirm_deletion program back
   | ShowRun { run ; more_logs_expected } ->
       Views.show_run ~waiting run st.selected_logs more_logs_expected
   | Test ->

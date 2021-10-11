@@ -155,6 +155,13 @@ td.logline {
 .ansi-bg-color-6 { background-color: #0AA; }
 .ansi-bg-color-7 { background-color: #AAA; }
 
+/* Buttons */
+
+span.horiz-spacer {
+  display: inline-block;
+  width: 1em;
+}
+
 /* Run */
 
 .subcommand {

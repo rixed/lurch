@@ -225,7 +225,7 @@ let input_hidden ?id ?key ?(a=[]) value =
   input ?key ~a []
 
 let horiz_spacer =
-  p ~a:[class_ "horiz-spacer"] [ text " " ]
+  span ~a:[class_ "horiz-spacer"] []
 
 (*  vdom does not propagate multi-values properly
 let select ?key ?(a=[]) name options selection =

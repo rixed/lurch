@@ -14,8 +14,11 @@ type location =
         editable : bool ;
         last_runs : Api.ListPastRuns.ts }
   | ConfirmDeleteProgram of
-      { program : Program.t }
-  | ShowRun of { run : Api.Run.t ; more_logs_expected : bool }
+      { program : Program.t ;
+        back : location }
+  | ShowRun of
+      { run : Api.Run.t ;
+        more_logs_expected : bool }
   | Test
 
 let string_of_location = function

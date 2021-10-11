@@ -129,7 +129,7 @@ let list_programs_and_run ~waiting programs =
 
 (* Display the program editor followed by the last runs.
  * [last_runs] must be ordered most recent first. *)
-let program_editor ~waiting ~editable program last_runs =
+let program_editor ~waiting ~editable program last_runs current_location =
   let saved_name =
     match program.Program.saved with
     | None -> ""
@@ -150,13 +150,13 @@ let program_editor ~waiting ~editable program last_runs =
         td [
           Command.edit ~editable ~dom_id:"program_command" program.edited.command ] ] ;
       tr [
-        td ~a:[attr "collspan" "2"] [
-          div (
+        td ~a:[colspan 2] [
+          p (
             (if editable || saved_name = "" then
               []
             else
-              [ button "Run" (`StartProgram saved_name) ]) @
-            [ horiz_spacer ] @
+              [ button "Run" (`StartProgram saved_name) ;
+                horiz_spacer ]) @
             (match editable, program.saved with
             | true, Some saved ->
                 [ button "Cancel"
@@ -168,22 +168,27 @@ let program_editor ~waiting ~editable program last_runs =
                      * diff? *)
                     (`SetLocation (State.ShowProgram {
                       program = { program with edited = saved } ;
-                      editable = false ; last_runs })) ]
+                      editable = false ; last_runs })) ;
+                  horiz_spacer ]
             | _ ->
                 (* If not editable or if this is a new program, skip the cancel
                  * button: *)
                 []) @
-            (if editable then
-              let prev_name =
-                match program.saved with Some saved -> saved.Api.Program.name
-                                       | None -> "" in [
-              button "Save" (`SaveProgram prev_name)
-            ] else [
-              button "Edit" (`SetLocation (State.ShowProgram
-                { program ; editable = true ; last_runs })) ]) @
+            [
+              (if editable then
+                let prev_name =
+                  match program.saved with Some saved -> saved.Api.Program.name
+                                         | None -> "" in
+                button "Save" (`SaveProgram prev_name)
+              else
+                button "Edit" (`SetLocation (State.ShowProgram
+                  { program ; editable = true ; last_runs }))) ;
+              horiz_spacer
+            ] @
             (if saved_name <> "" then [
               button "Delete" (
-                `SetLocation (State.ConfirmDeleteProgram { program }))
+                `SetLocation (State.ConfirmDeleteProgram {
+                  program ; back = current_location }))
             ] else [])) ] ] ] ;
     if saved_name = "" then
       no_elt
@@ -214,12 +219,14 @@ let program_editor ~waiting ~editable program last_runs =
             let bgcolor = bgcolor_of color in
             td ~a:[ bgcolor ] [ text txt ] ]))) ] ]
 
-let program_confirm_deletion program =
+let program_confirm_deletion program back =
   (* Called only for saved programs: *)
   let program_name = (option_get program.Program.saved).Api.Program.name in
   div [
     p [ text ("Are you sure you want to delete program "^ program_name ^"?") ] ;
-    p [ button "Confirm" (`DeleteProgram program_name) ] ]
+    p [ button "Cancel" (`SetLocation back) ;
+        horiz_spacer ;
+        button "Confirm" (`DeleteProgram program_name) ] ]
 
 let info label def =
   div ~a:[ class_ "info-pair" ] [
