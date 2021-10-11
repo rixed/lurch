@@ -396,19 +396,20 @@ let run_http_del ~url ~callback () =
 
 (* Display the stats of a run: *)
 let stats self desc =
-  let of_opt conv = function
-    | None -> "n.a"
-    | Some v -> conv v in
-  let of_float = of_opt string_of_float
-  and of_int = of_opt string_of_int in
+  let add conv self desc what =
+    match self, desc with
+    | None, None -> ""
+    | Some a, None -> conv a ^" (self) "^ what
+    | None, Some a -> conv a ^" (desc) "^ what
+    | Some a, Some b -> conv a ^" (self) + "^ conv b ^" (desc) "^ what in
+  let metric name s1 s2 =
+    let sep =
+      if s1 <> "" && s2 <> "" then " + " else "" in
+    p [ text (name ^ s1 ^ sep ^ s2) ] in
   div [
-    p [ text ("CPU: "^
-              of_float self.Api.RunStats.cpu_usr ^"+"^
-              of_float desc.Api.RunStats.cpu_usr ^" usr + "^
-              of_float self.cpu_sys ^"+"^
-              of_float desc.cpu_sys ^" sys") ] ;
-    p [ text ("RAM: "^
-              of_int self.mem_usr ^"+"^
-              of_int desc.mem_usr ^" usr + "^
-              of_int self.mem_sys ^"+"^
-              of_int desc.mem_sys ^" sys") ] ]
+    metric "CPU: "
+      (add string_of_float self.Api.RunStats.cpu_usr desc.Api.RunStats.cpu_usr "usr")
+      (add string_of_float self.cpu_sys desc.cpu_sys "sys") ;
+    metric "RAM: "
+      (add string_of_int self.mem_usr desc.mem_usr "usr")
+      (add string_of_int self.mem_sys desc.mem_sys "sys") ]

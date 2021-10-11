@@ -2,6 +2,7 @@
 :root {
   --bg-color: #eee;
   --fg-color: #111;
+  --dim-color: #777;
   --link-color: #558;
   --button-bg-color: #111;
   --button-fg-color: #fff;
@@ -130,6 +131,11 @@ td.logline {
   color: white;
   font-family: Inconsolata, monospace;
 }
+span.stat-na {
+  color: var(--dim-color);
+  font-size: 75%;
+}
+
 /* ANSI graphic modes for logs */
 .ansi-bold { font-weight: bold; }
 .ansi-faint { font-weight: lighter; }

@@ -64,23 +64,13 @@ let lurch_url page params =
     s ^ "&" ^ Url.urlencode n ^"="^ Url.urlencode v
   ) ("lurch?p="^ page) params
 
-let oldest_top_run = function
-  | State.ListPastRuns runs when Array.length runs > 0 ->
-      Some runs.(Array.length runs - 1).top_run
-  | State.ShowProgram { last_runs } when Array.length last_runs > 0 ->
-      let oldest =
-        Array.fold_left (fun oldest r ->
-          if r.Api.ListPastRuns.created < oldest.Api.ListPastRuns.created then
-            r else oldest
-        ) last_runs.(0) last_runs in
-      Some oldest.Api.ListPastRuns.top_run
-  | _ ->
-      None
-
 let update =
   (* How many log lines to ask in one batch: *)
   let logs_limit = 500 in
   let debug = false in
+  let last_top_run runs =
+    let len = Array.length runs in
+    if len = 0 then None else Some runs.(len - 1).Api.ListPastRuns.top_run in
   fun st -> function
   | `Test ->
       return State.{ st with location = Test }
@@ -95,16 +85,18 @@ let update =
           []
         ) in
       return ~c st
-  | `GetPastProgramRuns -> (* Fetch list of past runs for any program *)
+  | `GetPastProgramRuns oldest_top_run -> (* Fetch list of past runs for any program *)
       let params =
-        match oldest_top_run st.State.location with
+        match oldest_top_run with
         | None -> []
         | Some oldest -> [ "oldest_top_run", string_of_int oldest ] in
       let ajax =
         Http_get { url = lurch_url "list_past_runs" params ;
                    callback = fun r -> `GotPastProgramRuns r } in
       return ~c:[ajax]
-        State.{ st with waiting = true ; refresh_msg = Some `GetPastProgramRuns }
+        State.{ st with
+                  waiting = true ;
+                  refresh_msg = Some (`GetPastProgramRuns oldest_top_run) }
   | `GotPastProgramRuns (Error e) ->
       return State.{ st with location = ShowError e ; waiting = false }
   | `GotPastProgramRuns (Ok res) ->
@@ -116,7 +108,11 @@ let update =
             Array.append runs res
         | _ ->
             res in
-      return State.{ st with location = ListPastRuns res ; waiting = false }
+      let oldest_top_run = last_top_run res in
+      return State.{ st with
+                      location = ListPastRuns res ;
+                      waiting = false ;
+                      refresh_msg = Some (`GetPastProgramRuns oldest_top_run) }
   | `GetProgramsAndRun ->
       let ajax =
         Http_get { url = lurch_url "list_programs" [] ;
@@ -147,15 +143,15 @@ let update =
       if debug then log_js (Js_browser.JSON.parse res) ;
       let res = Api.Program.of_json_string res in
       let program = Program.of_api res in
-      return ~c:[Vdom.Cmd.echo (`GetLastRuns res.name) ]
+      return ~c:[Vdom.Cmd.echo (`GetLastRuns (res.name, None)) ]
         State.{ st with
           location = ShowProgram { program ; editable = false ;
                                    last_runs = [||] } ;
           waiting = false ;
           refresh_msg = Some (`GetProgram res.name) }
-  | `GetLastRuns name ->  (* Get the last runs of a specific program *)
+  | `GetLastRuns (name, oldest_top_run) ->  (* Get the last runs of a specific program *)
       let params =
-        match oldest_top_run st.State.location with
+        match oldest_top_run with
         | None -> []
         | Some oldest -> [ "oldest_top_run", string_of_int oldest ] in
       let ajax =
@@ -163,7 +159,9 @@ let update =
         Http_get { url = lurch_url "list_past_runs" params ;
                    callback = fun r -> `GotLastRuns (r, name) } in
       return ~c:[ajax]
-        State.{ st with waiting = true ; refresh_msg = Some (`GetLastRuns name) }
+        State.{ st with
+                  waiting = true ;
+                  refresh_msg = Some (`GetLastRuns (name, oldest_top_run)) }
   | `GotLastRuns (Error e, _) ->
       return State.{ st with location = ShowError e ; waiting = false }
   | `GotLastRuns (Ok res, name) ->
@@ -173,10 +171,12 @@ let update =
       | ShowProgram { program ; editable ; last_runs }
         when program.saved <> None &&
              (option_get program.saved).name = name ->
+          let last_runs = Array.append last_runs res in
+          let oldest_top_run = last_top_run last_runs in
           return State.{ st with
-            location = ShowProgram { program ; editable ;
-                                     last_runs = Array.append last_runs res } ;
-            waiting = false }
+            location = ShowProgram { program ; editable ; last_runs } ;
+            waiting = false ;
+            refresh_msg = Some (`GetLastRuns (name, oldest_top_run)) }
       | _ ->
           return State.{ st with waiting = false } (* used clicked away already *))
   | `RefreshProgram (dom_id, add_input, rem_input) ->
@@ -229,7 +229,7 @@ let update =
   | `DeletedProgram (Error e) ->
       return State.{ st with location = ShowError e ; waiting = false }
   | `DeletedProgram (Ok _) ->
-      return ~c:[Vdom.Cmd.echo `GetPastProgramRuns]
+      return ~c:[Vdom.Cmd.echo (`GetPastProgramRuns None)]
         State.{ st with waiting = true }
   | `StartProgram name ->
       let ajax =
@@ -272,7 +272,7 @@ let update =
              * refresh in any cases: *)
             [ Vdom.Cmd.echo (`GetRun (run.id, run.logs)) ]
         | ListPastRuns _ ->
-            [ Vdom.Cmd.echo `GetPastProgramRuns ]
+            [ Vdom.Cmd.echo (`GetPastProgramRuns None) ]
         | _ ->
             [] in
       return ~c st
@@ -406,7 +406,7 @@ let run () =
       State.{
         location = ListPastRuns [||] ;
         waiting = false ;
-        refresh_msg = Some `GetPastProgramRuns ;
+        refresh_msg = Some (`GetPastProgramRuns None) ;
         selected_logs = [0; 1; 2] } in
   let a = app ~init ~view ~update () in
   let a = Vdom_blit.run a in

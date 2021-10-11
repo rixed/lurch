@@ -17,10 +17,17 @@ let header _st =
       a_ "https://github.com/rixed/lurch" "source" ]
 
 let menu st =
+  let oldest_top_run =
+    match st.State.location with
+    | ListPastRuns runs when Array.length runs > 0 ->
+        Some runs.(Array.length runs - 1).Api.ListPastRuns.top_run
+    | _ ->
+        None in
   ul ~a:[ class_ "menu" ] [
-    li ~a:(onclick_if_allowed st.State.waiting `GetProgramsAndRun)
+    li ~a:(onclick_if_allowed st.waiting `GetProgramsAndRun)
       [ text "Programs" ] ;
-    li ~a:(onclick_if_allowed st.State.waiting `GetPastProgramRuns)
+    li ~a:(onclick_if_allowed st.waiting
+             (`GetPastProgramRuns oldest_top_run))
       [ text "Runs"] ]
 
 let spinner st =
@@ -49,19 +56,52 @@ let bgcolor_of = function
   | "" -> no_attr
   | c -> attr "bgcolor" c
 
+let of_float = function
+  | None -> span ~a:[class_ "stat-na"] [ text "n.a." ]
+  | Some v -> span ~a:[class_ "stat-num"] [ text (string_of_float v) ]
+
+let of_int = function
+  | None -> span ~a:[class_ "stat-na"] [ text "n.a." ]
+  | Some v -> span ~a:[class_ "stat-num"] [ text (string_of_int v) ]
+
 (* Display past runs. [runs] must be given most recent first. *)
 let list_past_runs ~waiting runs =
+  let len = Array.length runs in
+  let oldest_top_run =
+    if len = 0 then None
+    else Some runs.(len - 1).Api.ListPastRuns.top_run in
   div [
-    let columns =
-      [ "run#" ; "program" ; "started" ; "stopped" ;
-        "resources (self+children)" ; "outcome" ] in
-    let header = simple_table_header columns in
+    let header =
+      [ tr [
+          td ~a:[rowspan 4] [ text "run#" ] ;
+          td ~a:[rowspan 4] [ text "program" ] ;
+          td ~a:[rowspan 4] [ text "started" ] ;
+          td ~a:[rowspan 4] [ text "stopped" ] ;
+          td ~a:[colspan 8] [ text "resources" ] ;
+          td ~a:[rowspan 4] [ text "outcome" ] ] ;
+        tr [
+          td ~a:[colspan 4] [ text "CPU" ] ;
+          td ~a:[colspan 4] [ text "RAM" ] ] ;
+        tr [
+          td ~a:[colspan 2] [ text "self" ] ;
+          td ~a:[colspan 2] [ text "children" ] ;
+          td ~a:[colspan 2] [ text "self" ] ;
+          td ~a:[colspan 2] [ text "children" ] ] ;
+        tr [
+          td [ text "usr" ] ;
+          td [ text "sys" ] ;
+          td [ text "usr" ] ;
+          td [ text "sys" ] ;
+          td [ text "usr" ] ;
+          td [ text "sys" ] ;
+          td [ text "usr" ] ;
+          td [ text "sys" ] ] ] in
     let footer =
       [ tr [
-        td ~a:[colspan (List.length columns)] [
-          button "more" `GetPastProgramRuns ;
+        td ~a:[colspan 13] [
+          button "more" (`GetPastProgramRuns oldest_top_run);
+          horiz_spacer ;
           button "create a new program" `CreateProgram ] ] ] in
-    let len = Array.length runs in
     table ~header ~footer (List.init len (fun i ->
       let r = runs.(i) in
       let goto_prog = onclick_if_allowed waiting (`GetProgram r.Api.ListPastRuns.name)
@@ -79,8 +119,14 @@ let list_past_runs ~waiting runs =
               [ text (date_of_ts (option_get r.started)) ] ;
             td ~a:(class_ "click time" :: goto_run)
               [ text (date_of_tsn (r.stopped) |? "running") ] ]) @
-        [
-          td ~a:(class_ "click" :: goto_run) [ stats r.stats_self r.stats_desc ];
+        [ td ~a:(class_ "click" :: goto_run) [ of_float r.stats_self.cpu_usr ] ;
+          td ~a:(class_ "click" :: goto_run) [ of_float r.stats_self.cpu_sys ] ;
+          td ~a:(class_ "click" :: goto_run) [ of_float r.stats_desc.cpu_usr ] ;
+          td ~a:(class_ "click" :: goto_run) [ of_float r.stats_desc.cpu_sys ] ;
+          td ~a:(class_ "click" :: goto_run) [ of_int r.stats_self.mem_usr ] ;
+          td ~a:(class_ "click" :: goto_run) [ of_int r.stats_self.mem_sys ] ;
+          td ~a:(class_ "click" :: goto_run) [ of_int r.stats_desc.mem_usr ] ;
+          td ~a:(class_ "click" :: goto_run) [ of_int r.stats_desc.mem_sys ] ;
           let outcome, color = outcome r.exit_code in
           let bgcolor = bgcolor_of color in
           td ~a:(class_ "click" :: bgcolor :: goto_run)
@@ -130,6 +176,10 @@ let list_programs_and_run ~waiting programs =
 (* Display the program editor followed by the last runs.
  * [last_runs] must be ordered most recent first. *)
 let program_editor ~waiting ~editable program last_runs current_location =
+  let len = Array.length last_runs in
+  let oldest_top_run =
+    if len = 0 then None
+    else Some last_runs.(len - 1).Api.ListPastRuns.top_run in
   let saved_name =
     match program.Program.saved with
     | None -> ""
@@ -196,17 +246,38 @@ let program_editor ~waiting ~editable program last_runs current_location =
       (* List of past runs *)
       h2 [ text "Past Runs" ] ;
       let header =
-        simple_table_header
-          [ "started" ; "stopped" ; "resources" ; "outcome" ] in
+        [ tr [
+            td ~a:[rowspan 4] [ text "run#" ] ;
+            td ~a:[rowspan 4] [ text "started" ] ;
+            td ~a:[rowspan 4] [ text "stopped" ] ;
+            td ~a:[colspan 8] [ text "resources" ] ;
+            td ~a:[rowspan 4] [ text "outcome" ] ] ;
+          tr [
+            td ~a:[colspan 4] [ text "CPU" ] ;
+            td ~a:[colspan 4] [ text "RAM" ] ] ;
+          tr [
+            td ~a:[colspan 2] [ text "self" ] ;
+            td ~a:[colspan 2] [ text "children" ] ;
+            td ~a:[colspan 2] [ text "self" ] ;
+            td ~a:[colspan 2] [ text "children" ] ] ;
+          tr [
+            td [ text "usr" ] ;
+            td [ text "sys" ] ;
+            td [ text "usr" ] ;
+            td [ text "sys" ] ;
+            td [ text "usr" ] ;
+            td [ text "sys" ] ;
+            td [ text "usr" ] ;
+            td [ text "sys" ] ] ] in
       let footer =
         [ tr [
-            td ~a:[colspan 4]
-              [ button "more" (`GetLastRuns saved_name) ] ] ] in
-      let len = Array.length last_runs in
+            td ~a:[colspan 12]
+              [ button "more" (`GetLastRuns (saved_name, oldest_top_run)) ] ] ] in
       table ~header ~footer (List.init len (fun i ->
         let r = last_runs.(i) in
         tr ~a:(class_ "click" ::
                onclick_if_allowed waiting (`GetRun (r.top_run, [||]))) (
+          [ td [ text ("#"^ string_of_int r.top_run) ] ] @
           if r.started = None then
             [ td ~a:[ colspan 2 ] [ text "waiting" ] ]
           else
@@ -214,8 +285,15 @@ let program_editor ~waiting ~editable program last_runs current_location =
                 [ text (date_of_ts (option_get r.started)) ] ;
               td ~a:[ class_ "time" ]
                 [ text (date_of_tsn r.stopped |? "running") ] ] @
-          [ td [ stats r.stats_self r.stats_desc ] ] @
-          [ let txt, color = outcome r.exit_code in
+          [ td [ of_float r.stats_self.cpu_usr ] ;
+            td [ of_float r.stats_self.cpu_sys ] ;
+            td [ of_float r.stats_desc.cpu_usr ] ;
+            td [ of_float r.stats_desc.cpu_sys ] ;
+            td [ of_int r.stats_self.mem_usr ] ;
+            td [ of_int r.stats_self.mem_sys ] ;
+            td [ of_int r.stats_desc.mem_usr ] ;
+            td [ of_int r.stats_desc.mem_sys ] ;
+            let txt, color = outcome r.exit_code in
             let bgcolor = bgcolor_of color in
             td ~a:[ bgcolor ] [ text txt ] ]))) ] ]
 
