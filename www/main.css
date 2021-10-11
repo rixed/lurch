@@ -156,6 +156,10 @@ td.logline {
 
 /* Run */
 
+.subcommand {
+  padding-left: 1em;
+}
+
 .success {
   /* Color */
   color: var(--success-color);

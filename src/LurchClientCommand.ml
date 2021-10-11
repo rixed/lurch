@@ -21,7 +21,7 @@ let string_of_op_mode = function
  * re-printing it unnecessarily *)
 (* [depth] is the level of looping construct one can break from. This is always
  * possible to break from the running program if [depth] is 0. *)
-let rec edit_as_form ~depth ~op_mode ?(editable=true) ?dom_id command =
+let rec edit_as_form ?a ~depth ~op_mode ?(editable=true) ?dom_id command =
   (* Editable items have an id prefix of [dom_id] and suffix of [suff]: *)
   let id suff = option_map (fun pref -> pref ^"/"^ suff) dom_id in
   let refresh_msg ?add_input ?rem_input () =
@@ -73,7 +73,7 @@ let rec edit_as_form ~depth ~op_mode ?(editable=true) ?dom_id command =
             [ onchange_index (fun _ -> refresh_msg ()) ] in
       select ~a ~editable ?id ~selected command_labels
     ) in
-  div [
+  div ?a [
     op_selection ;
     (* Then the arguments of that specific operand: *)
     (match command.operation with
@@ -84,13 +84,15 @@ let rec edit_as_form ~depth ~op_mode ?(editable=true) ?dom_id command =
             (string_of_int exit_code) ]
     | Isolate { builder ; subcommand } ->
         div [
-          p [ text "This is the required first command, and will build an isolated \
-                    environment in which to run some more commands." ] ;
+          p [ text "This is the required first command, and will build an \
+                    isolated environment in which to run some more commands." ] ;
           h3 [ text "Isolation type" ] ;
-          edit_as_form ~depth ~op_mode:Isolation ~editable ?dom_id:(id "builder")
+          edit_as_form ~a:[class_ "subcommand"] ~depth ~op_mode:Isolation
+                       ~editable ?dom_id:(id "builder")
             builder ;
           h3 [ text "Isolated command" ] ;
-          edit_as_form ~depth ~op_mode:Isolated ~editable ?dom_id:(id "subcommand")
+          edit_as_form ~a:[class_ "subcommand"] ~depth ~op_mode:Isolated
+                       ~editable ?dom_id:(id "subcommand")
             subcommand ]
     | Chroot { template } ->
         div [
@@ -150,8 +152,9 @@ let rec edit_as_form ~depth ~op_mode ?(editable=true) ?dom_id command =
                 ~editable var_name ] ;
           p [ input_text ?id:(id "default") ~label:"Default Value:"
                 ~editable default ] ;
-          edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "subcommand")
-            subcommand ]
+          h3 [ text "In:" ] ;
+          edit_as_form ~a:[class_ "subcommand"] ~depth ~op_mode ~editable
+                       ?dom_id:(id "subcommand") subcommand ]
     | Sequence { subcommands } ->
         let lis =
           List.mapi (fun i subcommand ->
@@ -162,7 +165,8 @@ let rec edit_as_form ~depth ~op_mode ?(editable=true) ?dom_id command =
         let lis =
           if editable then lis @ [
             li [
-              edit_as_form ~depth ~op_mode ~editable
+              edit_as_form
+                ~depth ~op_mode ~editable
                 ?dom_id:(id (string_of_int (List.length subcommands)))
                 { operation = Nop { exit_code = 0 } ; id = 0 } ] ]
           else lis in
@@ -173,22 +177,25 @@ let rec edit_as_form ~depth ~op_mode ?(editable=true) ?dom_id command =
         div [
           p [ text "Execute the given subcommand up to a given number of times \
                     until it succeeds." ] ;
-          h3 [ text "Command" ] ;
-          edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "subcommand")
-            subcommand ;
           input_text ?id:(id "up_to") ~label:"Up to:" ~units:"times" ~editable
-            ~placeholder:"number…" (string_of_int up_to) ]
+            ~placeholder:"number…" (string_of_int up_to) ;
+          h3 [ text "Command" ] ;
+          edit_as_form ~a:[class_ "subcommand"] ~depth ~op_mode ~editable
+                       ?dom_id:(id "subcommand") subcommand ]
     | If { condition ; consequent ; alternative } ->
         div [
           p [ text "Execute the condition, and then either the consequent \
                     or the alternative, depending on the success of the \
                     condition." ] ;
           h3 [ text "Condition" ] ;
-          edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "condition") condition ;
+          edit_as_form ~a:[class_ "subcommand"] ~depth ~op_mode ~editable
+                       ?dom_id:(id "condition") condition ;
           h3 [ text "On Success" ] ;
-          edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "consequent") consequent ;
+          edit_as_form ~a:[class_ "subcommand"] ~depth ~op_mode ~editable
+                       ?dom_id:(id "consequent") consequent ;
           h3 [ text "On Failure" ] ;
-          edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "alternative") alternative ]
+          edit_as_form ~a:[class_ "subcommand"] ~depth ~op_mode ~editable
+                       ?dom_id:(id "alternative") alternative ]
     | Pause { duration } ->
         div [
           p [ text "Pause for the given amount of time before proceeding." ] ;
