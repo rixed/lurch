@@ -2,14 +2,7 @@
  * the other way around. *)
 open LurchApiTypes.Command
 
-let sql_bool_of_string = function
-  | "t" -> true
-  | "f" -> false
-  | x -> invalid_arg ("sql_bool_of_string "^ x)
-
-let sql_string_of_bool = function
-  | true -> "t"
-  | false -> "f"
+module Api = LurchApiTypes
 
 (* String representation of commands are mere s-expressions.
  * strings are represented as OCaml quoted strings. *)
@@ -146,7 +139,7 @@ let command_of_string str =
         let timeout =
           if timeout = "null" then None else Some (float_of_string timeout) in
         Approve { timeout ; comment ;
-                  autosuccess = sql_bool_of_string autosuccess }
+                  autosuccess = Api.sql_bool_of_string autosuccess }
     | Lst [ Sym "let" ; Sym var_name ; Str default ; Str comment ; s ] ->
         Let { var_name ; default ; comment ; subcommand = command_of_sexpr s }
     | Lst (Sym "sequence" :: cmds) ->
@@ -210,7 +203,7 @@ let string_of_command ?max_depth cmd =
               Sym (match timeout with None -> "null"
                                     | Some t -> string_of_float t) ;
               Str comment ;
-              Sym (sql_string_of_bool autosuccess) ]
+              Sym (Api.sql_string_of_bool autosuccess) ]
     | Let { var_name ; default ; subcommand ; comment } ->
         Lst [ Sym "let" ;
               Sym var_name ;

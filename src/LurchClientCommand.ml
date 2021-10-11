@@ -4,7 +4,6 @@ open Js_of_ocaml
 open Vdom
 
 module Api = LurchApiTypes
-module Lang = LurchCommandLanguage
 open LurchClientLib
 
 type op_mode =
@@ -140,7 +139,7 @@ let rec edit_as_form ?a ~depth ~op_mode ?(editable=true) ?dom_id command =
                 (option_map_default "" string_of_float timeout) ] ;
           p [ radios ?id:(id "autosuccess") ~label:"On timeout:" ~editable
                 [ "proceed", "t" ; "fail", "f" ]
-                (Lang.sql_string_of_bool autosuccess) ] ]
+                (Api.sql_string_of_bool autosuccess) ] ]
     | Let { var_name ; default ; subcommand ; comment } ->
         div [
           p [ text "Variable entered by the user that will then be substituted
@@ -358,7 +357,7 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
         let timeout = option_map float_of_string (value_opt "timeout")
         and comment = value ~def:"" "comment"
         and autosuccess =
-          Lang.sql_bool_of_string (value_radio ~def:"t" "autosuccess") in
+          Api.sql_bool_of_string (value_radio ~def:"t" "autosuccess") in
         Api.Command.Approve { timeout ; comment ; autosuccess }
     | "let" ->
         let subcommand = opt_subcommand "subcommand"

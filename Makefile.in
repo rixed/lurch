@@ -72,7 +72,6 @@ SERVER_SOURCES = \
 CLIENT_SOURCES = \
 	src/LurchVersion.ml \
 	src/LurchApiTypes.ml \
-	src/LurchCommandLanguage.ml \
 	src/LurchClientLib.ml \
 	src/LurchClientCommand.ml \
 	src/LurchClientProgram.ml \

@@ -12,6 +12,17 @@ let int_to_json_buffer d =
   Buffer.add_string b (string_of_int d) ;
   b
 
+(* Those are used both to convert from/to SQL and from/to GUI form: *)
+
+let sql_bool_of_string = function
+  | "t" -> true
+  | "f" -> false
+  | x -> invalid_arg ("sql_bool_of_string "^ x)
+
+let sql_string_of_bool = function
+  | true -> "t"
+  | false -> "f"
+
 module Command =
 struct
   type operation =

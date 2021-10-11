@@ -3,7 +3,6 @@ open Postgresql
 
 open LurchServerLib
 module Api = LurchApiTypes
-module Lang = LurchCommandLanguage
 
 (*$inject
   open Batteries *)
@@ -185,7 +184,7 @@ struct
               Api.Command.Approve {
                 timeout = getn float_of_string 1 ;
                 comment = getv 2 ;
-                autosuccess = Lang.sql_bool_of_string (getv 3) }
+                autosuccess = Api.sql_bool_of_string (getv 3) }
           | 5 ->
               Api.Command.Sequence
                 { subcommands = List.map (get % int_of_string)
@@ -262,7 +261,7 @@ struct
           "command_approve",
           [| "timeout", or_null string_of_float timeout ;
              "comment", comment ;
-             "autosuccess", Lang.sql_string_of_bool autosuccess |]
+             "autosuccess", Api.sql_string_of_bool autosuccess |]
       | Let { var_name ; default ; subcommand ; comment } ->
           "command_let",
           [| "subcommand", insert_or_update subcommand ;
@@ -960,7 +959,7 @@ struct
         run = getv (Run.get % int_of_string) 0 ;
         time = getn float_of_string 1 ;
         timeout = getn float_of_string 2 ;
-        autosuccess = getv Lang.sql_bool_of_string 3 })
+        autosuccess = getv Api.sql_bool_of_string 3 })
 end
 
 module ListPendingIsolations =
