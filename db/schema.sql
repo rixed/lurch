@@ -109,7 +109,8 @@ create table command_if (
 
 create table command_pause (
   command int,
-  duration float,
+  duration float, -- not interval because we'd have to parse the value from
+                  -- PG's string representation.
   foreign key (command) references command (id) on delete cascade
 );
 
@@ -407,14 +408,18 @@ create view run_bindings as
   left outer join run r2 on r2.parent_run = r.id
   group by r.id, c.var_name, c.values;
 
--- FIXME: show only actionable pauses, ie: where r.stopped is null and (r.started is null or age(r.started) >= duration)
 create view list_running_pauses as
   select
     r.id as run,
     c.duration
   from run r
   join command_pause c on c.command = r.command
-  where r.stopped is null;
+  where
+    r.stopped is null and (
+      r.started is null or
+      -- Note: age(r.started) compare with midnight!
+      extract(epoch from (now() - r.started)) >= c.duration
+    );
 
 create view list_running_waits as
   select
