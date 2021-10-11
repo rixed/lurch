@@ -255,10 +255,8 @@ let start_process pathname ~args ?(env=[||]) ?timeout run =
 (* The timeout to use for every "internal" commands: *)
 let command_timeout = ref (Some 600.)
 
-(* Terminals are unstarted commands that need no input from the user or
- * otherwise and therefore can be executed as soon as they are created. *)
-(* FIXME: Have one function per command instead, selecting only from its
- * own view that select actionable runs. *)
+(* Terminals are unstarted commands that need no information from the user or
+ * other runs and therefore can be executed as soon as they are created. *)
 let start_terminal run =
   match run.Api.Run.command.operation with
   | Nop { exit_code } ->
@@ -677,7 +675,7 @@ let step () =
   (* Propagate run cancellation down the command tree, down to killing started
    * processes: *)
   propagate_cancellations () ;
-  (* TODO: also timeout running commands *)
+  (* Wait for each command of the sequence before running the next: *)
   step_sequences () ;
   (* Execute conditionals: *)
   step_conditionals () ;
