@@ -255,6 +255,28 @@ let start_process pathname ~args ?(env=[||]) ?timeout run =
 (* The timeout to use for every "internal" commands: *)
 let command_timeout = ref (Some 600.)
 
+let max_spawn_per_min = ref 100
+
+let spawn_rate_limit =
+  let time () = int_of_float (Unix.time ()) in
+  let count_last_min = ref 0
+  and last_time = ref (time ()) in
+  let same_min t1 t2 = t1 / 60 = t2 / 60 in
+  fun () ->
+    let now = time () in
+    if same_min now !last_time then
+      if !count_last_min >= !max_spawn_per_min then
+        true
+      else (
+        incr count_last_min ;
+        false
+      )
+    else (
+      last_time := now ;
+      count_last_min := 1 ;
+      false
+    )
+
 (* Terminals are unstarted commands that need no information from the user or
  * other runs and therefore can be executed as soon as they are created. *)
 let start_terminal run =
@@ -297,11 +319,16 @@ let start_terminal run =
             Db.LogLine.insert run.id 2 line ;
             1
         | program ->
-            let subrun = Db.Run.insert ~creator_run:run.id program.command.id in
-            let line = "Spawning program "^ program.name ^" as run #"^
-                       string_of_int subrun in
-            Db.LogLine.insert run.id 1 line ;
-            0 in
+            if spawn_rate_limit () then (
+              Db.LogLine.insert run.id 2 "Rate limiting!" ;
+              Api.ExitStatus.rate_limited
+            ) else (
+              let subrun = Db.Run.insert ~creator_run:run.id program.command.id in
+              let line = "Spawning program "^ program.name ^" as run #"^
+                         string_of_int subrun in
+              Db.LogLine.insert run.id 1 line ;
+              0
+            ) in
       Db.Run.stop run.id exit_code
   | Break { depth } ->
       Db.Run.start run.id ;

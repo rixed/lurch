@@ -88,7 +88,7 @@ let fd_of_filename = function
 
 let class_of_status = function
   | Api.ExitStatus.Completed -> "success"
-  | Failed _ | CouldNotStart | TimedOut -> "failure"
+  | Failed _ | CouldNotStart | TimedOut | RateLimited -> "failure"
   | Interrupted _ | Expired | Cancelled -> "killed"
 
 (*

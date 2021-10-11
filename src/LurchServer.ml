@@ -58,6 +58,12 @@ let program =
   let i = Arg.info ~doc:"Program name." [] in
   Arg.(required (pos 0 (some string) None i))
 
+let spawn_rate_limit =
+  let env = Term.env_info "LURCH_SPAWN_RATE_LIMIT" in
+  let doc = "Max number of allowed spawns per minutes." in
+  let i = Arg.info ~env ~doc [ "max-spawn-per-min" ; "spawn-rate-limit" ] in
+  Arg.(value (opt int !LurchServerCommand.max_spawn_per_min i))
+
 let cgi dbg conninfo log_dir () =
   LurchServerLib.log_dir := log_dir ;
   Printexc.record_backtrace true ;
@@ -77,9 +83,10 @@ let start dbg conninfo program_name () =
   log.info "Program %s started as run #%d." program_name run_id ;
   Db.close ()
 
-let step dbg conninfo chroot_prefix busybox log_dir () =
+let step dbg conninfo chroot_prefix busybox log_dir spawn_rate_limit () =
   LurchServerChroot.chroot_prefix := chroot_prefix ;
   LurchServerChroot.busybox := busybox ;
+  LurchServerCommand.max_spawn_per_min := spawn_rate_limit ;
   init_log dbg true ;
   Db.init conninfo ;
   Command.step () ;
@@ -117,7 +124,8 @@ let start =
 (* Perform a single step of any pending run: *)
 let step =
   Term.(
-    (const step $ dbg $ conninfo $ chroot_prefix $ busybox $ log_dir),
+    (const step
+      $ dbg $ conninfo $ chroot_prefix $ busybox $ log_dir $ spawn_rate_limit),
     info ~doc:"Perform the next step of execution." "step")
 
 (* Allows to execute internal commands as a separate process: *)

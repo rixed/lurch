@@ -237,16 +237,19 @@ struct
     | Expired
     | Cancelled
     | TimedOut
+    | RateLimited
 
   (* Those are specific to lurch: *)
   let expired = -129
   let cancelled = -130
   let timed_out = -131
+  let rate_limited = -132
 
   let of_code code =
     if code = expired then Expired else
     if code = cancelled then Cancelled else
     if code = timed_out then TimedOut else
+    if code = rate_limited then RateLimited else
     if code < 0 && code >= -128 then Interrupted (-code) else
     if code = 127 then CouldNotStart else
     if code = 0 then Completed else
@@ -261,12 +264,13 @@ struct
     | Expired -> "Expired"
     | Cancelled -> "Cancelled"
     | TimedOut -> "Timed out"
+    | RateLimited -> "Rate limited"
 
   type err_level = Ok | Warn | Err
 
   let err_level = function
     | Completed -> Ok
-    | Failed _ | CouldNotStart | Expired | TimedOut -> Err
+    | Failed _ | CouldNotStart | Expired | TimedOut | RateLimited -> Err
     | Interrupted _ | Cancelled -> Warn
 end
 
