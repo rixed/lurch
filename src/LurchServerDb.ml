@@ -183,10 +183,9 @@ struct
                   timeout = getn float_of_string 4 }
           | 4 ->
               Api.Command.Approve {
-                subcommand = get (int_of_string (getv 1)) ;
-                timeout = getn float_of_string 2 ;
-                comment = getv 3 ;
-                autosuccess = Lang.sql_bool_of_string (getv 4) }
+                timeout = getn float_of_string 1 ;
+                comment = getv 2 ;
+                autosuccess = Lang.sql_bool_of_string (getv 3) }
           | 5 ->
               Api.Command.Sequence
                 { subcommands = List.map (get % int_of_string)
@@ -204,8 +203,7 @@ struct
               Api.Command.Nop { exit_code = int_of_string (getv 1) }
           | 9 ->
               Api.Command.Pause
-                { subcommand = get (int_of_string (getv 1)) ;
-                  duration = float_of_string (getv 2) }
+                { duration = float_of_string (getv 1) }
           | 10 ->
               Api.Command.Let {
                 subcommand = get (int_of_string (getv 1)) ;
@@ -229,8 +227,7 @@ struct
                 hour = list int_of_string (getv 2) ;
                 mday = list int_of_string (getv 3) ;
                 month = list int_of_string (getv 4) ;
-                wday = list int_of_string (getv 5) ;
-                subcommand = get (int_of_string (getv 6)) }
+                wday = list int_of_string (getv 5) }
           | _ ->
               assert false)
         )
@@ -261,10 +258,9 @@ struct
              "args", sql_of_string_array sql_array_quote args ;
              "env", sql_of_string_array sql_array_quote env ;
              "timeout", or_null string_of_float timeout |]
-      | Approve { subcommand ; timeout ; comment ; autosuccess } ->
+      | Approve { timeout ; comment ; autosuccess } ->
           "command_approve",
-          [| "subcommand", insert_or_update subcommand ;
-             "timeout", or_null string_of_float timeout ;
+          [| "timeout", or_null string_of_float timeout ;
              "comment", comment ;
              "autosuccess", Lang.sql_string_of_bool autosuccess |]
       | Let { var_name ; default ; subcommand ; comment } ->
@@ -286,18 +282,16 @@ struct
           [| "condition", insert_or_update condition ;
              "consequent", insert_or_update consequent ;
              "alternative", insert_or_update alternative |]
-      | Pause { duration ; subcommand } ->
+      | Pause { duration } ->
           "command_pause",
-          [| "duration", string_of_float duration ;
-             "subcommand", insert_or_update subcommand |]
-      | Wait { minute ; hour ; mday ; month ; wday ; subcommand } ->
+          [| "duration", string_of_float duration |]
+      | Wait { minute ; hour ; mday ; month ; wday } ->
           "command_wait",
           [| "minute", sql_of_string_list string_of_int minute ;
              "hour", sql_of_string_list string_of_int hour ;
              "mday", sql_of_string_list string_of_int mday ;
              "month", sql_of_string_list string_of_int month ;
-             "wday", sql_of_string_list string_of_int wday ;
-             "subcommand", insert_or_update subcommand |]
+             "wday", sql_of_string_list string_of_int wday |]
       | Spawn { program } ->
           "command_spawn", [| "program", program |]
       | ForLoop { var_name ; values ; subcommand } ->
@@ -834,17 +828,14 @@ struct
     let cnx = get_cnx () in
     let res =
       cnx#exec ~expect:[Tuples_ok]
-        "select run, subrun, duration, subcommand from list_running_pauses" in
+        "select run, duration from list_running_pauses" in
     log.debug "%d pauses are unfinished." res#ntuples ;
     Enum.init res#ntuples (fun i ->
       let getv conv j = conv (res#getvalue i j) in
-      let getn conv j = if res#getisnull i j then None else Some (getv conv j) in
       log.debug "Got tuple %a" (Array.print String.print) (res#get_tuple i) ;
       Api.ListRunningPauses.{
         run = Run.get (getv int_of_string 0) ;
-        subrun = Option.map Run.get (getn int_of_string 1) ;
-        duration = getv float_of_string 2 ;
-        subcommand = getv int_of_string 3 })
+        duration = getv float_of_string 1 })
 end
 
 module ListRunningWaits =
@@ -853,21 +844,18 @@ struct
     let cnx = get_cnx () in
     let res =
       cnx#exec ~expect:[Tuples_ok]
-        "select run, subrun, minute, hour, mday, month, wday, subcommand
+        "select run, minute, hour, mday, month, wday
          from list_running_waits" in
     log.debug "%d waits are unfinished." res#ntuples ;
     Enum.init res#ntuples (fun i ->
       let getv conv j = conv (res#getvalue i j) in
-      let getn conv j = if res#getisnull i j then None else Some (getv conv j) in
       Api.ListRunningWaits.{
         run = Run.get (getv int_of_string 0) ;
-        subrun = Option.map Run.get (getn int_of_string 1) ;
         minute = getv (list int_of_string) 2 ;
         hour = getv (list int_of_string) 3 ;
         mday = getv (list int_of_string) 4 ;
         month = getv (list int_of_string) 5 ;
-        wday = getv (list int_of_string) 6 ;
-        subcommand = getv int_of_string 7 })
+        wday = getv (list int_of_string) 6 })
 end
 
 module ListRunningIfs =
@@ -961,16 +949,18 @@ struct
     let cnx = get_cnx () in
     let res =
       cnx#exec ~expect:[Tuples_ok]
-        "select run, extract(epoch from time), autosuccess \
+        "select run, extract(epoch from time), timeout, autosuccess \
         from list_pending_approvals order by time" in
     log.debug "%d approvals are waiting." res#ntuples ;
     Enum.init res#ntuples (fun i ->
+      let getv conv j = conv (res#getvalue i j) in
+      let getn conv j = if res#getisnull i j then None else Some (getv conv j) in
       log.debug "Got tuple %a" (Array.print String.print) (res #get_tuple i) ;
       Api.ListPendingApprovals.{
-        run = Run.get (int_of_string (res#getvalue i 0)) ;
-        time = if res#getisnull i 1 then None else
-                 Some (float_of_string (res#getvalue i 1)) ;
-        autosuccess = Lang.sql_bool_of_string (res#getvalue i 2) })
+        run = getv (Run.get % int_of_string) 0 ;
+        time = getn float_of_string 1 ;
+        timeout = getn float_of_string 2 ;
+        autosuccess = getv Lang.sql_bool_of_string 3 })
 end
 
 module ListPendingIsolations =

@@ -66,12 +66,10 @@ create table command_nop (
 
 create table command_approve (
   command int,
-  subcommand int not null,
   timeout float,
   comment text not null default '',
   autosuccess boolean not null default false,
-  foreign key (command) references command (id) on delete cascade,
-  foreign key (subcommand) references command (id)
+  foreign key (command) references command (id) on delete cascade
 );
 
 create table command_let (
@@ -111,10 +109,8 @@ create table command_if (
 
 create table command_pause (
   command int,
-  subcommand int not null,
   duration float,
-  foreign key (command) references command (id) on delete cascade,
-  foreign key (subcommand) references command (id)
+  foreign key (command) references command (id) on delete cascade
 );
 
 create table command_wait (
@@ -124,9 +120,7 @@ create table command_wait (
   mday int array not null default '{}',
   month int array not null default '{}',
   wday int array not null default '{}',
-  subcommand int not null,
-  foreign key (command) references command (id) on delete cascade,
-  foreign key (subcommand) references command (id)
+  foreign key (command) references command (id) on delete cascade
 );
 
 create table command_spawn (
@@ -416,24 +410,18 @@ create view run_bindings as
 create view list_running_pauses as
   select
     r.id as run,
-    r2.id as subrun,
-    c.duration,
-    c.subcommand
+    c.duration
   from run r
   join command_pause c on c.command = r.command
-  left outer join run r2 on r2.parent_run = r.id
-  where r.stopped is null and (r2.id is null or r2.exit_code is not null);
+  where r.stopped is null;
 
 create view list_running_waits as
   select
     r.id as run,
-    r2.id as subrun,
-    c.minute, c.hour, c.mday, c.month, c.wday,
-    c.subcommand
+    c.minute, c.hour, c.mday, c.month, c.wday
   from run r
   join command_wait c on c.command = r.command
-  left outer join run r2 on r2.parent_run = r.id
-  where r.stopped is null and (r2.id is null or r2.exit_code is not null) ;
+  where r.stopped is null;
 
 create view list_running_ifs as
   select
@@ -457,6 +445,7 @@ create view list_pending_approvals as
   select
     r.id as run,
     c.time,
+    w.timeout,
     w.autosuccess
   from run r
   join command_approve w on w.command = r.command

@@ -31,11 +31,14 @@ struct
           env : string array ;
           timeout : float option }
     | Approve of
-        { subcommand : t ; timeout : float option ; comment : string ;
+        { comment : string ;
+          timeout : float option ;
           autosuccess : bool }
     | Let of
-        { subcommand : t ; var_name : string ; default : string ;
-          comment : string }
+        { comment : string ;
+          var_name : string ;
+          default : string ;
+          subcommand : t }
     | Sequence of
         { subcommands : t list }
     | Retry of
@@ -43,14 +46,13 @@ struct
     | If of
         { condition : t ; consequent : t ; alternative : t }
     | Pause of
-        { duration : float ; subcommand : t }
+        { duration : float }
     | Wait of
         { minute : int list ;  (* An empty list means all *)
           hour : int list ;
           mday : int list ;
           month : int list ;
-          wday : int list ;
-          subcommand : t }
+          wday : int list }
     | Spawn of
         { (* Better than taking the run_id of the program to spawn, storing
              its name allow to make use of variable expansion. Also survive
@@ -66,14 +68,12 @@ struct
 
   let rec fold f u cmd =
     match cmd.operation with
-    | Nop _ | Chroot _ | Docker _ | Exec _ | Spawn _ | Break _ ->
+    | Nop _ | Chroot _ | Docker _ | Exec _ | Spawn _ | Break _ | Approve _
+    | Pause _ | Wait _ ->
         f u cmd
     | Isolate { subcommand }
-    | Approve { subcommand }
     | Let { subcommand }
     | Retry { subcommand }
-    | Pause { subcommand }
-    | Wait { subcommand }
     | ForLoop { subcommand } ->
         let u = fold f u subcommand in
         f u cmd
@@ -128,8 +128,8 @@ struct
     | Exec { pathname ; args ; env ; timeout } ->
         "Exec(pathname:"^ pathname ^", args:…, env:…, timeout:"^
         or_null string_of_float timeout ^")"
-    | Approve { subcommand ; timeout ; comment ; autosuccess } ->
-        "Approve(subcommand:"^ to_string subcommand ^", timeout:"^
+    | Approve { timeout ; comment ; autosuccess } ->
+        "Approve(timeout:"^
         or_null string_of_float timeout ^ ",comment:"^ comment ^", autosuccess:"^
         string_of_bool autosuccess ^")"
     | Let { var_name ; default ; subcommand ; comment } ->
@@ -144,18 +144,16 @@ struct
         "If(condition:"^ to_string condition ^
         ", consequent:"^ to_string consequent ^
         ", alternative:"^ to_string alternative ^")"
-    | Pause { duration ; subcommand } ->
-        "Pause(duration:"^ string_of_float duration ^", subcommand:"^
-        to_string subcommand ^")"
-    | Wait { minute ; hour ; mday ; month ; wday ; subcommand } ->
+    | Pause { duration } ->
+        "Pause(duration:"^ string_of_float duration ^")" ;
+    | Wait { minute ; hour ; mday ; month ; wday } ->
         let string_of_times l =
           String.concat "," (List.map string_of_int l) in
         "Wait("^ string_of_times minute ^" "^
                  string_of_times hour ^" "^
                  string_of_times mday ^" "^
                  string_of_times month ^" "^
-                 string_of_times wday ^
-        ", subcommand:"^ to_string subcommand ^")"
+                 string_of_times wday ^")"
     | Spawn { program } ->
         "Spawn(program:"^ program ^")"
     | ForLoop { var_name ; values ; subcommand } ->
@@ -439,22 +437,18 @@ module ListRunningPauses =
 struct
   type t =
     { run : Run.t ;
-      subrun : Run.t option ;
-      duration : float ;
-      subcommand : int }
+      duration : float }
 end
 
 module ListRunningWaits =
 struct
   type t =
     { run : Run.t ;
-      subrun : Run.t option ;
       minute : int list ;
       hour : int list ;
       mday : int list ;
       month : int list ;
-      wday : int list ;
-      subcommand : int }
+      wday : int list }
 end
 
 module ListRunningIfs =
@@ -473,6 +467,7 @@ module ListPendingApprovals =
 struct
   type t =
     { run : Run.t ;
+      timeout : float option ;
       time : float option ; (* None if still unconfirmed *)
       autosuccess : bool }
 end

@@ -351,22 +351,10 @@ let step_pauses () =
     log_exceptions (fun () ->
       match pause.Api.ListRunningPauses.run.started with
       | Some started ->
-          (match pause.subrun with
-          | None ->
-              if now -. started >= pause.duration then (
-                let subrun =
-                  Db.Run.insert ~top_run:pause.run.top_run ~parent_run:pause.run.id
-                                pause.subcommand in
-                let line = "Pause is over, starting subcommand as #"^
-                             string_of_int subrun in
-                Db.LogLine.insert pause.run.id 1 line)
-          | Some Api.Run.{ id ; exit_code = Some exit_code } ->
-              let line = "Subcommand #"^ string_of_int id ^" exited" in
-              Db.LogLine.insert pause.run.id 1 line ;
-              Db.Run.stop pause.run.id exit_code
-          | _ ->
-              (* Because of list_running_pauses: *)
-              assert false)
+          if now -. started >= pause.duration then (
+            let line = "Pause is over, proceeding" in
+            Db.LogLine.insert pause.run.id 1 line ;
+            Db.Run.stop pause.run.id 0)
       | None ->
           let line = "Pause for "^ string_of_float pause.duration ^"s" in
           Db.LogLine.insert pause.run.id 1 line ;
@@ -379,29 +367,16 @@ let step_waits () =
     log_exceptions (fun () ->
       if wait.Api.ListRunningWaits.run.Api.Run.started = None then
         Db.Run.start wait.run.id ;
-      match wait.subrun with
-      | None ->
-          let time_match cur exp =
-            exp = [] || List.mem cur exp in
-          if time_match tm.Unix.tm_min wait.minute &&
-             time_match tm.Unix.tm_hour wait.hour &&
-             time_match tm.Unix.tm_mday wait.mday &&
-             time_match tm.Unix.tm_mon wait.month &&
-             time_match tm.Unix.tm_wday wait.wday then (
-            let subrun =
-              Db.Run.insert ~top_run:wait.run.top_run ~parent_run:wait.run.id
-                            wait.subcommand in
-            let line = "Reached time specifications, starting subcommand as #"^
-                         string_of_int subrun in
-            Db.LogLine.insert wait.run.id 1 line)
-      | Some Api.Run.{ exit_code = Some exit_code } ->
-          let line = "Subcommand finished with exit_code "^
-                       string_of_int exit_code in
-          Db.LogLine.insert wait.run.id 1 line ;
-          Db.Run.stop wait.run.id exit_code
-      | Some _ ->
-          (* Because of list_pending_lets definition: *)
-          assert false))
+      let time_match cur exp =
+        exp = [] || List.mem cur exp in
+      if time_match tm.Unix.tm_min wait.minute &&
+         time_match tm.Unix.tm_hour wait.hour &&
+         time_match tm.Unix.tm_mday wait.mday &&
+         time_match tm.Unix.tm_mon wait.month &&
+         time_match tm.Unix.tm_wday wait.wday then (
+        let line = "Reached time specifications, proceeding" in
+        Db.LogLine.insert wait.run.id 1 line ;
+        Db.Run.stop wait.run.id 0)))
 
 let step_waiting () =
   Db.ListWaitingTerminals.get () |>
@@ -534,28 +509,17 @@ let step_approvals () =
         assert (Array.length approve.run.children = 1) ;
         finish_as_subrun approve.run approve.run.children.(0)
       ) else (
-        let subcommand, timeout =
-          match approve.run.command.Command.operation with
-          | Approve { subcommand ; timeout } ->
-              subcommand, timeout
-          | _ -> assert false in
         let unblock timed_out =
           let proceed = not timed_out || approve.autosuccess in
-          (* Start the subcommand before stopping the wait so this is less of
-           * a problem to die here: *)
-          let line = Printf.sprintf "%s. %s subcommand"
+          let line = Printf.sprintf "%s, %s"
             (if timed_out then "Timing out" else "Confirmed")
-            (if proceed then "Proceeding to" else "Cancelling") in
+            (if proceed then "proceeding" else "cancelling") in
           Db.LogLine.insert approve.run.id 1 line ;
-          if proceed then (
-            let run_id = Db.Run.insert ~top_run:approve.run.top_run
-                                       ~parent_run:approve.run.id
-                                       subcommand.Api.Command.id in
-            log.debug "Created a new run #%d" run_id
-          ) else (
-            Db.Run.stop approve.run.id Api.ExitStatus.timed_out
-          ) in
-        match approve.run.started, timeout, approve.time with
+          let exit_code =
+            if proceed then 0 else Api.ExitStatus.timed_out in
+          Db.Run.stop approve.run.id exit_code
+        in
+        match approve.run.started, approve.timeout, approve.time with
         | None, _, _ ->
             log.debug "Starting run #%d for wait_confirmation" approve.run.id ;
             Db.Run.start approve.run.id

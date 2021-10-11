@@ -142,10 +142,10 @@ let command_of_string str =
         and env = List.map string_of_str env |> Array.of_list
         and timeout = or_null float_of_sym timeout in
         Exec { pathname ; args ; env ; timeout }
-    | Lst [ Sym "approve" ; Sym timeout ; Str comment ; Sym autosuccess ; s ] ->
+    | Lst [ Sym "approve" ; Sym timeout ; Str comment ; Sym autosuccess ] ->
         let timeout =
           if timeout = "null" then None else Some (float_of_string timeout) in
-        Approve { subcommand = command_of_sexpr s ; timeout ; comment ;
+        Approve { timeout ; comment ;
                   autosuccess = sql_bool_of_string autosuccess }
     | Lst [ Sym "let" ; Sym var_name ; Str default ; Str comment ; s ] ->
         Let { var_name ; default ; comment ; subcommand = command_of_sexpr s }
@@ -158,17 +158,15 @@ let command_of_string str =
         If { condition = command_of_sexpr s1 ;
              consequent = command_of_sexpr s2 ;
              alternative = command_of_sexpr s3 }
-    | Lst [ Sym "pause" ; Sym duration ; s ] ->
-        Pause { duration = float_of_string duration ;
-                subcommand = command_of_sexpr s }
+    | Lst [ Sym "pause" ; Sym duration ] ->
+        Pause { duration = float_of_string duration }
     | Lst [ Sym "wait" ; Lst minute ; Lst hour ; Lst mday ; Lst month ;
-            Lst wday ; s ] ->
+            Lst wday ] ->
         Wait { minute = List.map int_of_sym minute ;
                hour = List.map int_of_sym hour ;
                mday = List.map int_of_sym mday ;
                month = List.map int_of_sym month ;
-               wday = List.map int_of_sym wday ;
-               subcommand = command_of_sexpr s }
+               wday = List.map int_of_sym wday }
     | Lst [ Sym "spawn" ; Str program ] ->
         Spawn { program }
     | Lst [ Sym "for" ; Sym var_name ; Lst values ; s ] ->
@@ -207,13 +205,12 @@ let string_of_command ?max_depth cmd =
               Lst (List.map to_str (Array.to_list args)) ;
               Lst (List.map to_str (Array.to_list env)) ;
               or_null sym_of_float timeout ]
-    | Approve { subcommand ; timeout ; comment ; autosuccess } ->
+    | Approve { timeout ; comment ; autosuccess } ->
         Lst [ Sym "approve" ;
               Sym (match timeout with None -> "null"
                                     | Some t -> string_of_float t) ;
               Str comment ;
-              Sym (sql_string_of_bool autosuccess) ;
-              sexpr_of_command ?max_depth subcommand ]
+              Sym (sql_string_of_bool autosuccess) ]
     | Let { var_name ; default ; subcommand ; comment } ->
         Lst [ Sym "let" ;
               Sym var_name ;
@@ -232,18 +229,16 @@ let string_of_command ?max_depth cmd =
               sexpr_of_command ?max_depth condition ;
               sexpr_of_command ?max_depth consequent ;
               sexpr_of_command ?max_depth alternative ]
-    | Pause { duration ; subcommand } ->
+    | Pause { duration } ->
         Lst [ Sym "pause" ;
-              Sym (string_of_float duration) ;
-              sexpr_of_command ?max_depth subcommand ]
-    | Wait { minute ; hour ; mday ; month ; wday ; subcommand } ->
+              Sym (string_of_float duration) ]
+    | Wait { minute ; hour ; mday ; month ; wday } ->
         Lst [ Sym "wait" ;
               Lst (List.map sym_of_int minute) ;
               Lst (List.map sym_of_int hour) ;
               Lst (List.map sym_of_int mday) ;
               Lst (List.map sym_of_int month) ;
-              Lst (List.map sym_of_int wday) ;
-              sexpr_of_command ?max_depth subcommand ]
+              Lst (List.map sym_of_int wday) ]
     | Spawn { program } ->
         Lst [ Sym "spawn" ; Str program ]
     | ForLoop { var_name ; values ; subcommand } ->
@@ -279,8 +274,8 @@ let string_of_command ?max_depth cmd =
 *)
 
 (*$= string_of_command & ~printer:identity
-  "(pause 4. (exec \"make\" (\"make\") () 0.))" \
+  "(sequence (pause 4.) (exec \"make\" (\"make\") () 0.))" \
     (linearize \
       (string_of_command (command_of_string \
-        "(pause 4 (exec \"make\" (\"make\") () 0))")))
+        "(sequence (pause 4) (exec \"make\" (\"make\") () 0))")))
 *)

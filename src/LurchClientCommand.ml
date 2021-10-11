@@ -124,10 +124,10 @@ let rec edit_as_form ~depth ~op_mode ?(editable=true) ?dom_id command =
           p [ input_text ?id:(id "timeout") ~label:"Timeout:" ~units:"seconds"
                 ~editable ~placeholder:"seconds…"
                 (option_map_default "" string_of_float timeout) ] ]
-    | Approve { subcommand ; timeout ; comment ; autosuccess } ->
+    | Approve { timeout ; comment ; autosuccess } ->
         div [
-          p [ text "Wait for a manual approval before running the given \
-                    subcommand. If no confirmation is received before the optional \
+          p [ text "Wait for a manual approval before proceeding. \
+                    If no confirmation is received before the optional \
                     timeout expires then either the execution proceed or the
                     program fails, depending on the auto-success flag." ] ;
           div [
@@ -138,9 +138,7 @@ let rec edit_as_form ~depth ~op_mode ?(editable=true) ?dom_id command =
                 (option_map_default "" string_of_float timeout) ] ;
           p [ radios ?id:(id "autosuccess") ~label:"On timeout:" ~editable
                 [ "proceed", "t" ; "fail", "f" ]
-                (Lang.sql_string_of_bool autosuccess) ] ;
-          edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "subcommand")
-            subcommand ]
+                (Lang.sql_string_of_bool autosuccess) ] ]
     | Let { var_name ; default ; subcommand ; comment } ->
         div [
           p [ text "Variable entered by the user that will then be substituted
@@ -191,15 +189,12 @@ let rec edit_as_form ~depth ~op_mode ?(editable=true) ?dom_id command =
           edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "consequent") consequent ;
           h3 [ text "On Failure" ] ;
           edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "alternative") alternative ]
-    | Pause { duration ; subcommand } ->
+    | Pause { duration } ->
         div [
-          p [ text "Pause for the given amount of time before starting the \
-                    specified subcommand." ] ;
+          p [ text "Pause for the given amount of time before proceeding." ] ;
           input_text ?id:(id "duration") ~label:"Duration:" ~units:"seconds" ~editable
-            ~placeholder:"seconds…" (string_of_float duration) ;
-          h3 [ text "Command" ] ;
-          edit_as_form ~depth ~op_mode ~editable ?dom_id:(id "subcommand") subcommand ]
-    | Wait { minute ; hour ; mday ; month ; wday ; subcommand } ->
+            ~placeholder:"seconds…" (string_of_float duration) ]
+    | Wait { minute ; hour ; mday ; month ; wday } ->
         let input_time k label vals =
           input_text_multi ?id:(id k) ~editable ~label
             ~on_add:(refresh_msg ~add_input:(id k, "0") ())
@@ -207,15 +202,12 @@ let rec edit_as_form ~depth ~op_mode ?(editable=true) ?dom_id command =
             (List.map string_of_int vals) in
         div [
           p [ text "Wait for the next occurrence of a specific point in time \
-                    before executing the specified command (à la crontab)." ] ;
+                    (à la crontab) before proceeding." ] ;
           input_time "minute" "Minutes:" minute ;
           input_time "hour" "Hours:" hour ;
           input_time "mday" "Days of month:" mday ;
           input_time "month" "Months:" month ;
-          input_time "wday" "Days of week (0=Sun):" wday ;
-          h3 [ text "Then:" ] ;
-          edit_as_form ~depth:(depth+1) ~op_mode ~editable
-            ?dom_id:(id "subcommand") subcommand ]
+          input_time "wday" "Days of week (0=Sun):" wday ]
     | Spawn { program } ->
         div [
           p [ text "Start the specified program. Do not wait for its \
@@ -356,12 +348,11 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
         and timeout = option_map float_of_string (value_opt "timeout") in
         Api.Command.Exec { pathname ; args ; env ; timeout }
     | "approve" ->
-        let subcommand = opt_subcommand "subcommand"
-        and timeout = option_map float_of_string (value_opt "timeout")
+        let timeout = option_map float_of_string (value_opt "timeout")
         and comment = value ~def:"" "comment"
         and autosuccess =
           Lang.sql_bool_of_string (value_radio ~def:"t" "autosuccess") in
-        Api.Command.Approve { subcommand ; timeout ; comment ; autosuccess }
+        Api.Command.Approve { timeout ; comment ; autosuccess }
     | "let" ->
         let subcommand = opt_subcommand "subcommand"
         and var_name = value ~def:"name" "var_name"
@@ -391,17 +382,15 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
         and alternative = opt_subcommand "alternative" in
         Api.Command.If { condition ; consequent ; alternative }
     | "pause" ->
-        let subcommand = opt_subcommand "subcommand"
-        and duration = float_of_string (value ~def:"0" "duration") in
-        Api.Command.Pause { duration ; subcommand }
+        let duration = float_of_string (value ~def:"0" "duration") in
+        Api.Command.Pause { duration }
     | "wait" ->
         let minute = value_ints "minute"
         and hour = value_ints "hour"
         and mday = value_ints "mday"
         and month = value_ints "month"
-        and wday = value_ints "wday"
-        and subcommand = opt_subcommand "subcommand" in
-        Api.Command.Wait { minute ; hour ; mday ; month ; wday ; subcommand }
+        and wday = value_ints "wday" in
+        Api.Command.Wait { minute ; hour ; mday ; month ; wday }
     | "spawn" ->
         let program = value ~def:"" "program" in
         Api.Command.Spawn { program }
@@ -501,7 +490,7 @@ let rec view run =
               no_elt
           | Some t ->
               p [ text "Time out after " ; config_txt (string_of_float t) ; text "." ] ]
-    | Approve { subcommand ; comment } ->
+    | Approve { comment } ->
         let comment = Api.Run.var_expand run.env comment in
         div [
           (match run.confirmation_msg with
@@ -524,8 +513,7 @@ let rec view run =
                 if msg <> "" then
                   [ text " with message: " ; text msg ]
                 else
-                  [ text " with no message" ])) ;
-          view_subcommand subcommand ]
+                  [ text " with no message" ])) ]
     | Let { subcommand ; comment ; var_name ; default } ->
         div [
           (match run.var_value with
@@ -564,11 +552,10 @@ let rec view run =
           view_subcommand consequent ;
           p [ text "Else:" ] ;
           view_subcommand alternative ]
-    | Pause { duration ; subcommand } ->
+    | Pause { duration } ->
         div [
-          p [ text ("Pause for "^ string_of_float duration ^" seconds, then:") ] ;
-          view_subcommand subcommand ]
-    | Wait { minute ; hour ; mday ; month ; wday ; subcommand } ->
+          p [ text ("Pause for "^ string_of_float duration ^" seconds") ] ]
+    | Wait { minute ; hour ; mday ; month ; wday } ->
         let disp_times label vals =
           let line =
             label ^": "^ String.concat ", " (List.map string_of_int vals) in
@@ -580,9 +567,7 @@ let rec view run =
             disp_times "Hours" hour ;
             disp_times "Day of month" mday ;
             disp_times "Month" month ;
-            disp_times "Day of week (0=Sun)" wday ] ;
-          p [ text "Then:" ] ;
-          view_subcommand subcommand ]
+            disp_times "Day of week (0=Sun)" wday ] ]
     | Spawn { program } ->
         let program = Api.Run.var_expand run.env program in
         div [

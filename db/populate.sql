@@ -9,14 +9,13 @@ insert into command_exec (command, pathname, args) values
    '{"clone","https://github.com/rixed/lurch.git"}');
 
 insert into command default values;
-insert into command_exec (command, pathname) values
-  ((select max(id) from command), '/usr/bin/make');
+insert into command_approve (command, timeout) values
+  ((select max(id) from command),
+   864000); -- 10 days
 
 insert into command default values;
-insert into command_approve (command, subcommand, timeout) values
-  ((select max(id) from command),
-   (select max(command) from command_exec),
-   864000); -- 10 days
+insert into command_exec (command, pathname) values
+  ((select max(id) from command), '/usr/bin/make');
 
 insert into command default values;
 insert into command_sequence (command, subcommands) values
