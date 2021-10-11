@@ -95,7 +95,7 @@ let update =
           []
         ) in
       return ~c st
-  | `GetPastProgramRuns -> (* Fetch list of program past runs and display them: *)
+  | `GetPastProgramRuns -> (* Fetch list of past runs for any program *)
       let params =
         match oldest_top_run st.State.location with
         | None -> []
@@ -153,7 +153,7 @@ let update =
                                    last_runs = [||] } ;
           waiting = false ;
           refresh_msg = Some (`GetProgram res.name) }
-  | `GetLastRuns name ->
+  | `GetLastRuns name ->  (* Get the last runs of a specific program *)
       let params =
         match oldest_top_run st.State.location with
         | None -> []

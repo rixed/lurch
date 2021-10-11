@@ -49,6 +49,7 @@ let bgcolor_of = function
   | "" -> no_attr
   | c -> attr "bgcolor" c
 
+(* Display past runs. [runs] must be given most recent first. *)
 let list_past_runs ~waiting runs =
   div [
     let columns =
@@ -62,7 +63,7 @@ let list_past_runs ~waiting runs =
           button "create a new program" `CreateProgram ] ] ] in
     let len = Array.length runs in
     table ~header ~footer (List.init len (fun i ->
-      let r = runs.(len - i - 1) in
+      let r = runs.(i) in
       let goto_prog = onclick_if_allowed waiting (`GetProgram r.Api.ListPastRuns.name)
       and goto_run = onclick_if_allowed waiting(`GetRun (r.top_run, [||])) in
       tr (
@@ -85,6 +86,7 @@ let list_past_runs ~waiting runs =
           td ~a:(class_ "click" :: bgcolor :: goto_run)
             [ text outcome ] ]))) ]
 
+(* Display all programs in a single table, also displaying their last run *)
 let list_programs_and_run ~waiting programs =
   let header =
     simple_table_header [ "program" ; "last start" ; "last stop" ; "outcome" ; "action" ] in
@@ -125,6 +127,8 @@ let list_programs_and_run ~waiting programs =
       [ td ~a:(class_ "click" :: onclick_if_allowed waiting (`StartProgram p.name))
           [ text "run" ] ])))
 
+(* Display the program editor followed by the last runs.
+ * [last_runs] must be ordered most recent first. *)
 let program_editor ~waiting ~editable program last_runs =
   let saved_name =
     match program.Program.saved with
@@ -195,7 +199,7 @@ let program_editor ~waiting ~editable program last_runs =
               [ button "more" (`GetLastRuns saved_name) ] ] ] in
       let len = Array.length last_runs in
       table ~header ~footer (List.init len (fun i ->
-        let r = last_runs.(len - i - 1) in
+        let r = last_runs.(i) in
         tr ~a:(class_ "click" ::
                onclick_if_allowed waiting (`GetRun (r.top_run, [||]))) (
           if r.started = None then
