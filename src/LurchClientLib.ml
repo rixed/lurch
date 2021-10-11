@@ -214,7 +214,7 @@ let input_text_multi ?id ?key ?(a=[]) ?(editable=true) ?label ?on_add ?on_rem
       | _ -> [] in
   match label with
   | None -> div ?key ~a lines
-  | Some label -> div ?key ~a (p [ text label ] :: lines)
+  | Some label -> p ?key ~a (text label :: lines)
 
 let input_hidden ?id ?key ?(a=[]) value =
   let a = option_map_default a (fun id -> attr "id" id :: a) id in

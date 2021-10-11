@@ -55,14 +55,13 @@ let rec edit_as_form ?a ~depth ~op_mode ?(editable=true) ?dom_id command =
     l in
   let op_selection =
     let id = id "op" in
-    if List.length command_labels = 1 then (
-      (* Still check that it's the right one: *)
-      let l = Api.Command.name_of_operation command.Api.Command.operation in
-      assert (List.mem l command_labels) ;
-      (* Do not offer to choose the command if there is only one possible: *)
-      input_hidden ?id (List.hd command_labels)
+    let selected = label_of_operation command.Api.Command.operation in
+    (* Do not offer to choose the command if there is only one possible.
+     * Also, if the input is not editable then the text is enough to understand
+     * which operation is meant. *)
+    if List.length command_labels = 1 || not editable then (
+      input_hidden ?id selected
     ) else (
-      let selected = label_of_operation command.Api.Command.operation in
       let a =
         match dom_id with
         | None -> []
@@ -83,13 +82,11 @@ let rec edit_as_form ?a ~depth ~op_mode ?(editable=true) ?dom_id command =
             (string_of_int exit_code) ]
     | Isolate { builder ; subcommand } ->
         div [
-          p [ text "This is the required first command, and will build an \
-                    isolated environment in which to run some more commands." ] ;
-          h3 [ text "Isolation type" ] ;
+          h3 [ text "Build an isolated environment with:" ] ;
           edit_as_form ~a:[class_ "subcommand"] ~depth ~op_mode:Isolation
                        ~editable ?dom_id:(id "builder")
             builder ;
-          h3 [ text "Isolated command" ] ;
+          h3 [ text "Then run the following command:" ] ;
           edit_as_form ~a:[class_ "subcommand"] ~depth ~op_mode:Isolated
                        ~editable ?dom_id:(id "subcommand")
             subcommand ]
@@ -114,39 +111,55 @@ let rec edit_as_form ?a ~depth ~op_mode ?(editable=true) ?dom_id command =
                     the given timeout expires." ] ;
           p [ input_text ?id:(id "pathname") ~label:"Executable:" ~editable
                 pathname ] ;
-          input_text_multi ?id:(id "args") ~editable ~label:"Arguments:"
-            ~on_add:(refresh_msg ~add_input:(id "args", "") ())
-            ~on_rem:(fun i -> refresh_msg ~rem_input:(id "args", i) ())
-            (Array.to_list args) ;
-          input_text_multi ?id:(id "env") ~editable ~label:"Environment:"
-            ~on_add:(refresh_msg ~add_input:(id "env", "") ())
-            ~on_rem:(fun i -> refresh_msg ~rem_input:(id "env", i) ())
-            ~placeholder:"NAME=VALUE" (Array.to_list env) ;
-          p [ input_text ?id:(id "timeout") ~label:"Timeout:" ~units:"seconds"
-                ~editable ~placeholder:"seconds…"
-                (option_map_default "" string_of_float timeout) ] ]
+          (if editable || args <> [||] then
+            input_text_multi ?id:(id "args") ~editable ~label:"Arguments:"
+              ~on_add:(refresh_msg ~add_input:(id "args", "") ())
+              ~on_rem:(fun i -> refresh_msg ~rem_input:(id "args", i) ())
+              (Array.to_list args)
+          else no_elt) ;
+          (if editable || env <> [||] then
+            input_text_multi ?id:(id "env") ~editable ~label:"Environment:"
+              ~on_add:(refresh_msg ~add_input:(id "env", "") ())
+              ~on_rem:(fun i -> refresh_msg ~rem_input:(id "env", i) ())
+              ~placeholder:"NAME=VALUE" (Array.to_list env)
+          else no_elt) ;
+          (if editable || timeout <> None then
+            p [ input_text ?id:(id "timeout") ~label:"Timeout:" ~units:"seconds"
+                  ~editable ~placeholder:"seconds…"
+                  (option_map_default "" string_of_float timeout) ]
+          else no_elt) ]
     | Approve { timeout ; comment ; autosuccess } ->
         div [
           p [ text "Wait for a manual approval before proceeding. \
                     If no confirmation is received before the optional \
                     timeout expires then either the execution proceed or the
                     program fails, depending on the auto-success flag." ] ;
-          div [
-            p [ text "Text for user:" ] ;
-            textarea ?id:(id "comment") ~editable [ text comment ] ] ;
-          p [ input_text ?id:(id "timeout") ~label:"Timeout:" ~units:"seconds"
-                ~editable ~placeholder:"seconds…"
-                (option_map_default "" string_of_float timeout) ] ;
-          p [ radios ?id:(id "autosuccess") ~label:"On timeout:" ~editable
-                [ "proceed", "t" ; "fail", "f" ]
-                (Api.sql_string_of_bool autosuccess) ] ]
+          (if editable || comment <> "" then
+            div [
+              p [ text "Text for user:" ] ;
+              textarea ?id:(id "comment") ~editable [ text comment ] ]
+          else no_elt) ;
+          (if editable || timeout <> None then
+            p [ input_text ?id:(id "timeout") ~label:"Timeout:" ~units:"seconds"
+                  ~editable ~placeholder:"seconds…"
+                  (option_map_default "" string_of_float timeout) ]
+          else no_elt) ;
+          (if editable then
+            p [ radios ?id:(id "autosuccess") ~label:"On timeout:" ~editable
+                  [ "proceed", "t" ; "fail", "f" ]
+                (Api.sql_string_of_bool autosuccess) ]
+          else
+            p [ text ("On timeout: "^
+                      (if autosuccess then "proceed" else "fail")) ])]
     | Let { var_name ; default ; subcommand ; comment } ->
         div [
           p [ text "Variable entered by the user that will then be substituted
                     within every subcommand parameters." ] ;
-          div [
-            p [ text "Text for user:" ] ;
-            textarea ?id:(id "comment") ~editable [ text comment ] ] ;
+          (if editable || comment <> "" then
+            div [
+              p [ text "Text for user:" ] ;
+              textarea ?id:(id "comment") ~editable [ text comment ] ]
+          else no_elt) ;
           p [ input_text ?id:(id "var_name") ~label:"Variable Name:"
                 ~editable var_name ] ;
           p [ input_text ?id:(id "default") ~label:"Default Value:"
@@ -178,7 +191,7 @@ let rec edit_as_form ?a ~depth ~op_mode ?(editable=true) ?dom_id command =
                     until it succeeds." ] ;
           input_text ?id:(id "up_to") ~label:"Up to:" ~units:"times" ~editable
             ~placeholder:"number…" (string_of_int up_to) ;
-          h3 [ text "Command" ] ;
+          h3 [ text "Command:" ] ;
           edit_as_form ~a:[class_ "subcommand"] ~depth ~op_mode ~editable
                        ?dom_id:(id "subcommand") subcommand ]
     | If { condition ; consequent ; alternative } ->
@@ -186,13 +199,13 @@ let rec edit_as_form ?a ~depth ~op_mode ?(editable=true) ?dom_id command =
           p [ text "Execute the condition, and then either the consequent \
                     or the alternative, depending on the success of the \
                     condition." ] ;
-          h3 [ text "Condition" ] ;
+          h3 [ text "If:" ] ;
           edit_as_form ~a:[class_ "subcommand"] ~depth ~op_mode ~editable
                        ?dom_id:(id "condition") condition ;
-          h3 [ text "On Success" ] ;
+          h3 [ text "Then:" ] ;
           edit_as_form ~a:[class_ "subcommand"] ~depth ~op_mode ~editable
                        ?dom_id:(id "consequent") consequent ;
-          h3 [ text "On Failure" ] ;
+          h3 [ text "Else:" ] ;
           edit_as_form ~a:[class_ "subcommand"] ~depth ~op_mode ~editable
                        ?dom_id:(id "alternative") alternative ]
     | Pause { duration } ->
@@ -231,7 +244,7 @@ let rec edit_as_form ?a ~depth ~op_mode ?(editable=true) ?dom_id command =
             ~on_add:(refresh_msg ~add_input:(id "values", "") ())
             ~on_rem:(fun i -> refresh_msg ~rem_input:(id "values", i) ())
             (Array.to_list values) ;
-          h3 [ text "Body" ] ;
+          h3 [ text "Body:" ] ;
           edit_as_form ~depth:(depth+1) ~op_mode ~editable
             ?dom_id:(id "subcommand") subcommand ]
     | Break { depth = d } ->
@@ -449,11 +462,11 @@ let rec view run =
         ol [
           li [
             div [
-              text "Build an isolated environment with:" ;
+              h3 [ text "Build an isolated environment with:" ] ;
               view_subcommand builder ] ] ;
           li [
             div [
-              text "Then run the following command:" ;
+              h3 [ text "Then run the following command:" ] ;
               view_subcommand subcommand ] ] ]
     | Chroot { template } ->
         div [
@@ -505,14 +518,16 @@ let rec view run =
               let msg_dom_id = "run_confirm_msg_" ^ string_of_int run.id in
               div (
                 (if comment <> "" then [ p [ text comment ] ] else []) @
-                (if run.stopped = None then [
-                  p [ text "Waiting since " ;
-                      text (date_of_ts run.created) ] ;
-                  input_text ~label:"Leave a message:" ~id:msg_dom_id
-                    ~placeholder:"message…" "" ;
-                  button "Approve"
-                    (`ConfirmCommand (run.id, msg_dom_id, run.top_run)) ]
-                else []))
+                (match run.started, run.stopped with
+                | Some _, None ->
+                    [ p [ text "Waiting since " ;
+                          text (date_of_ts run.created) ] ;
+                      input_text ~label:"Leave a message:" ~id:msg_dom_id
+                        ~placeholder:"message…" "" ;
+                      button "Approve"
+                        (`ConfirmCommand (run.id, msg_dom_id, run.top_run)) ]
+                | _ ->
+                    []))
           | Some msg ->
               p (
                 text "Confirmed " ::
@@ -528,39 +543,38 @@ let rec view run =
               let msg_dom_id = "run_var_value_" ^ string_of_int run.id in
               div (
                 (if comment <> "" then [ p [ text comment ] ] else []) @
-                (if run.stopped = None then [
-                  input_text ~label:"Value:" ~id:msg_dom_id default ;
-                  button "Set"
-                    (`SetVariable (run.id, msg_dom_id, run.top_run)) ]
-                else []))
+                (match run.started, run.stopped with
+                | Some _, None ->
+                    [ input_text ~label:"Value:" ~id:msg_dom_id default ;
+                      button "Set"
+                        (`SetVariable (run.id, msg_dom_id, run.top_run)) ]
+                | _ ->
+                    []))
           | Some value ->
               p [ text (var_name ^" is set to "^ value) ]) ;
+          h3 [ text "In:" ] ;
           view_subcommand subcommand ]
     | Sequence { subcommands } ->
-        let num_steps = List.length subcommands in
-        div [
-          p [ text ("Sequence of "^ string_of_int num_steps ^" steps:") ] ;
-          ol (
-            List.map (fun subcommand ->
-              li [ view_subcommand subcommand ]
-            ) subcommands) ]
+        ol (
+          List.map (fun subcommand ->
+            li [ view_subcommand subcommand ]
+          ) subcommands)
     | Retry { up_to ; subcommand } ->
         div [
-          p [ text "Retry up to " ;
-              config_txt (string_of_int up_to) ;
-              text " times." ] ;
+          h3 [ text "Retry up to " ;
+               config_txt (string_of_int up_to) ;
+               text " times:" ] ;
           view_subcommand subcommand ]
     | If { condition ; consequent ; alternative } ->
         div [
-          p [ text "If:" ] ;
+          h3 [ text "If:" ] ;
           view_subcommand condition ;
-          p [ text "Then:" ] ;
+          h3 [ text "Then:" ] ;
           view_subcommand consequent ;
-          p [ text "Else:" ] ;
+          h3 [ text "Else:" ] ;
           view_subcommand alternative ]
     | Pause { duration } ->
-        div [
-          p [ text ("Pause for "^ string_of_float duration ^" seconds") ] ]
+        p [ text ("Pause for "^ string_of_float duration ^" seconds") ]
     | Wait { minute ; hour ; mday ; month ; wday } ->
         let disp_times label vals =
           let line =
@@ -576,15 +590,13 @@ let rec view run =
             disp_times "Day of week (0=Sun)" wday ] ]
     | Spawn { program } ->
         let program = Api.Run.var_expand run.env program in
-        div [
-          p [ text ("Spawn program "^ program ^".") ] ]
+        p [ text ("Spawn program "^ program ^".") ]
     | ForLoop { var_name ; values ; subcommand } ->
         div [
-          p [ text ("For "^ var_name ^" in "^ array_join ", " values ^" do:") ] ;
+          h3 [ text ("For "^ var_name ^" in "^ array_join ", " values ^" do:") ] ;
           view_subcommand subcommand ]
     | Break { depth } ->
-        div [
-          p [ text ("Break out of "^ string_of_int depth ^" loops") ] ]) ;
+        p [ text ("Break out of "^ string_of_int depth ^" loops") ]) ;
     (match run.started, run.pid, run.stopped with
     | None, _, _ ->
         p ~a:[ class_ "status" ]
