@@ -52,8 +52,8 @@ create table command_exec (
   command int,
   pathname text not null,
   -- !!!WARNING WARNING WARNING!!! postgres arrays start at 1 !!!
-  args text[] not null default '{}', -- Editor should provide sane default
-  env text[] not null default '{}', -- Editor should provide sane default
+  args text array not null default '{}', -- Editor should provide sane default
+  env text array not null default '{}', -- Editor should provide sane default
   timeout float,
   foreign key (command) references command (id) on delete cascade
 );
@@ -133,7 +133,7 @@ create table command_for_loop (
   command int,
   var_name text not null,
   -- !!!WARNING WARNING WARNING!!! postgres arrays start at 1 !!!
-  values text[] not null default '{}',
+  values text array not null default '{}',
   subcommand int not null,
   foreign key (command) references command (id) on delete cascade,
   foreign key (subcommand) references command (id)
@@ -407,6 +407,7 @@ create view run_bindings as
   left outer join run r2 on r2.parent_run = r.id
   group by r.id, c.var_name, c.values;
 
+-- FIXME: show only actionable pauses, ie: where r.stopped is null and (r.started is null or age(r.started) >= duration)
 create view list_running_pauses as
   select
     r.id as run,
@@ -463,7 +464,7 @@ create view list_pending_lets as
   join command_let c on c.command = r.command
   join let_value v on v.run = r.id
   left outer join run r2 on r2.parent_run = r.id
-  where r.stopped is null and (r2.id is null or r2.stopped is not null);
+  where r.stopped is null and (r2.id is null or r2.exit_code is not null);
 
 -- List all containers/chroot that have to be build
 create view list_pending_isolations as

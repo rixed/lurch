@@ -257,6 +257,8 @@ let command_timeout = ref (Some 600.)
 
 (* Terminals are unstarted commands that need no input from the user or
  * otherwise and therefore can be executed as soon as they are created. *)
+(* FIXME: Have one function per command instead, selecting only from its
+ * own view that select actionable runs. *)
 let start_terminal run =
   match run.Api.Run.command.operation with
   | Nop { exit_code } ->
@@ -539,8 +541,7 @@ let step_approvals () =
         | Some _, _, Some t ->
             log.info "Confirmation #%d received, proceeding to next step."
               approve.run.id ;
-            unblock false
-      )))
+            unblock false)))
 
 let step_lets () =
   Db.ListPendingLets.get () |>

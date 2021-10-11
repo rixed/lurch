@@ -17,7 +17,8 @@ struct
   type operation =
     | Nop of { exit_code : int }
     | Isolate of
-        { builder : t ; subcommand : t }
+        { builder : t ;
+          subcommand : t }
     | Chroot of
         { template : string }
     | Docker of
@@ -42,9 +43,12 @@ struct
     | Sequence of
         { subcommands : t list }
     | Retry of
-        { subcommand : t ; up_to : int }
+        { subcommand : t ;
+          up_to : int }
     | If of
-        { condition : t ; consequent : t ; alternative : t }
+        { condition : t ;
+          consequent : t ;
+          alternative : t }
     | Pause of
         { duration : float }
     | Wait of
@@ -59,8 +63,11 @@ struct
              program changes (the table of programs is append-only): *)
           program : string }
     | ForLoop of
-        { var_name : string ; values : string array ; subcommand : t }
-    | Break of { depth : int }
+        { var_name : string ;
+          values : string array ;
+          subcommand : t }
+    | Break of
+        { depth : int }
     [@@deriving json]
 
   and t = { id : int ; operation : operation }
