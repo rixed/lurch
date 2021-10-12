@@ -11,6 +11,10 @@ module Views = LurchClientViews
  * View
  *)
 
+let last_top_run runs =
+  let len = Array.length runs in
+  if len = 0 then None else Some runs.(len - 1).Api.ListPastRuns.top_run
+
 let view_of_location st =
   let open State in
   let waiting = st.State.waiting in
@@ -18,7 +22,9 @@ let view_of_location st =
   | ShowError e ->
       div [ p ~a:[class_ "error"] [ text e ] ]
   | ListPastRuns lst ->
-      Views.list_past_runs ~waiting lst
+      let oldest_top_run = last_top_run lst in
+      Views.list_past_runs ~waiting ~single_program:false
+        ~on_more:(`GetPastProgramRuns oldest_top_run) lst
   | ListProgramsAndRun lst ->
       Views.list_programs_and_run ~waiting lst
   | ShowProgram { program ; editable ; last_runs } ->
@@ -68,9 +74,6 @@ let update =
   (* How many log lines to ask in one batch: *)
   let logs_limit = 500 in
   let debug = false in
-  let last_top_run runs =
-    let len = Array.length runs in
-    if len = 0 then None else Some runs.(len - 1).Api.ListPastRuns.top_run in
   fun st -> function
   | `Test ->
       return State.{ st with location = Test }
