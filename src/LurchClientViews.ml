@@ -56,17 +56,52 @@ let bgcolor_of = function
   | "" -> no_attr
   | c -> attr "bgcolor" c
 
-let of_float = function
-  | None -> span ~a:[class_ "stat-na"] [ text "n.a." ]
-  | Some v -> span ~a:[class_ "stat-num"] [ text (string_of_float v) ]
-
-let of_int = function
-  | None -> span ~a:[class_ "stat-na"] [ text "n.a." ]
-  | Some v -> span ~a:[class_ "stat-num"] [ text (string_of_int v) ]
-
 (* Display past runs. [runs] must be given most recent first. *)
 let list_past_runs ~single_program ~waiting ~on_more runs =
   let len = Array.length runs in
+  (* For each column, for each program, compute the average and the stddev,
+   * first by computing the sums, then the averages, then also the stddev: *)
+  let log_hash what h =
+    let string_of_opt_float = function
+      | None -> "None"
+      | Some f -> string_of_float f in
+    Hashtbl.iter (fun k (_self, desc) ->
+      log (what ^" for "^ k ^":") ;
+      log ("RAM desc usr = "^ string_of_opt_float desc.Api.RunStats.mem_usr ^
+           " (num="^ string_of_int desc.Api.RunStats.num_mem_usr ^")") ;
+      log ("RAM desc sys = "^ string_of_opt_float desc.Api.RunStats.mem_sys ^
+           " (num="^ string_of_int desc.Api.RunStats.num_mem_sys ^")")
+    ) h in
+  let avgs = Hashtbl.create 50 in
+  Array.iter (fun r ->
+    let k = r.Api.ListPastRuns.name in
+    match Hashtbl.find avgs k with
+    | exception Not_found ->
+        Hashtbl.add avgs k (r.stats_self, r.stats_desc)
+    | self, desc ->
+        Hashtbl.replace avgs k (Api.RunStats.aggr self r.stats_self,
+                                Api.RunStats.aggr desc r.stats_desc)
+  ) runs ;
+  Hashtbl.filter_map_inplace (fun _k (self, desc) ->
+    Some Api.RunStats.(avg self, avg desc)
+  ) avgs ;
+  let stddevs = Hashtbl.create (Hashtbl.length avgs) in
+  Array.iter (fun r ->
+    let k = r.Api.ListPastRuns.name in
+    let avg_self, avg_desc = Hashtbl.find avgs k in
+    let dev_self = Api.RunStats.(square (sub r.stats_self avg_self))
+    and dev_desc = Api.RunStats.(square (sub r.stats_desc avg_desc)) in
+    match Hashtbl.find stddevs k with
+    | exception Not_found ->
+        Hashtbl.add stddevs k (dev_self, dev_desc)
+    | self, desc ->
+        Hashtbl.replace stddevs k (Api.RunStats.aggr self dev_self,
+                                   Api.RunStats.aggr desc dev_desc)
+  ) runs ;
+  Hashtbl.filter_map_inplace (fun _k (self, desc) ->
+    Some Api.RunStats.(sqrt (avg self), sqrt (avg desc))
+  ) stddevs ;
+  (* Build the table: *)
   let num_cols =
     if single_program then 12 else 13 in
   div [
@@ -106,8 +141,41 @@ let list_past_runs ~single_program ~waiting ~on_more runs =
                 button "create a new program" `CreateProgram ])) ] ] in
     table ~header ~footer (List.init len (fun i ->
       let r = runs.(i) in
-      let goto_prog = onclick_if_allowed waiting (`GetProgram r.Api.ListPastRuns.name)
-      and goto_run = onclick_if_allowed waiting (`GetRun (r.top_run, [||])) in
+      let goto_prog = onclick_if_allowed waiting (`GetProgram r.name)
+      and goto_run = onclick_if_allowed waiting (`GetRun (r.top_run, [||]))
+      and avg_self, avg_desc = Hashtbl.find avgs r.name
+      and stddev_self, stddev_desc = Hashtbl.find stddevs r.name in
+      let td_stat to_string avg stddev v =
+        let cls, txt, diff_txt =
+          match avg, stddev, v with
+          | Some avg, Some stddev, Some v ->
+              let anomaly = 2. *. stddev
+              and warning = stddev
+              and diff = v -. avg in
+              let diff_txt =
+                if diff > warning || diff < ~-.warning then
+                  let sigmas = diff /. stddev in
+                  Printf.sprintf "(%+.1fσ)" sigmas
+                else
+                  "" in
+              let cls =
+                if diff > anomaly || diff < ~-.anomaly then "stat-anomaly" else
+                if diff > warning || diff < ~-.warning then "stat-warning" else
+                "stat-normal" in
+              cls, to_string v, Some diff_txt
+          | _, _, None ->
+              "stat-na", "n.a.", None
+          | _ ->
+              (* If we had at least ont value then we must have been able to compute
+               * the avg and stddev: *)
+              assert false in
+        td ~a:(class_ "click" :: goto_run)
+          (span ~a:[class_ cls] [ text txt ] ::
+          match diff_txt with
+          | None ->
+              []
+          | Some diff_txt ->
+              [ span ~a:[class_ (cls ^" stat-diff") ] [ text diff_txt ] ]) in
       tr (
         td ~a:(class_ "click" :: goto_run)
           [ text ("#"^ string_of_int r.top_run) ] ::
@@ -120,14 +188,14 @@ let list_past_runs ~single_program ~waiting ~on_more runs =
                 [ text (date_of_ts (option_get r.started)) ] ;
               td ~a:(class_ "click time" :: goto_run)
                 [ text (date_of_tsn (r.stopped) |? "running") ] ]) @
-          [ td ~a:(class_ "click" :: goto_run) [ of_float r.stats_self.cpu_usr ] ;
-            td ~a:(class_ "click" :: goto_run) [ of_float r.stats_self.cpu_sys ] ;
-            td ~a:(class_ "click" :: goto_run) [ of_float r.stats_desc.cpu_usr ] ;
-            td ~a:(class_ "click" :: goto_run) [ of_float r.stats_desc.cpu_sys ] ;
-            td ~a:(class_ "click" :: goto_run) [ of_int r.stats_self.mem_usr ] ;
-            td ~a:(class_ "click" :: goto_run) [ of_int r.stats_self.mem_sys ] ;
-            td ~a:(class_ "click" :: goto_run) [ of_int r.stats_desc.mem_usr ] ;
-            td ~a:(class_ "click" :: goto_run) [ of_int r.stats_desc.mem_sys ] ;
+          [ td_stat string_of_secs avg_self.cpu_usr stddev_self.cpu_usr r.stats_self.cpu_usr ;
+            td_stat string_of_secs avg_self.cpu_sys stddev_self.cpu_sys r.stats_self.cpu_sys ;
+            td_stat string_of_secs avg_desc.cpu_usr stddev_desc.cpu_usr r.stats_desc.cpu_usr ;
+            td_stat string_of_secs avg_desc.cpu_sys stddev_desc.cpu_sys r.stats_desc.cpu_sys ;
+            td_stat string_of_mem avg_self.mem_usr stddev_self.mem_usr r.stats_self.mem_usr ;
+            td_stat string_of_mem avg_self.mem_sys stddev_self.mem_sys r.stats_self.mem_sys ;
+            td_stat string_of_mem avg_desc.mem_usr stddev_desc.mem_usr r.stats_desc.mem_usr ;
+            td_stat string_of_mem avg_desc.mem_sys stddev_desc.mem_sys r.stats_desc.mem_sys ;
             let outcome, color = outcome r.exit_code in
             let bgcolor = bgcolor_of color in
             td ~a:(class_ "click" :: bgcolor :: goto_run)

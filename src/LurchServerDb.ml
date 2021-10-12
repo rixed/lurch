@@ -341,15 +341,17 @@ struct
       let getv conv j = conv (res#getvalue i j) in
       let getn conv j = if res#getisnull i j then None else Some (getv conv j) in
       let self =
-        Api.RunStats.{
-          cpu_usr = getn float_of_string 1 ;
-          cpu_sys = getn float_of_string 2 ;
-          mem_usr = getn int_of_string 3 ;
-          mem_sys = getn int_of_string 4 } in
+        Api.RunStats.make (getn float_of_string 1) (getn float_of_string 2)
+                          (getn float_of_string 3) (getn float_of_string 4) in
       let desc = get (getv int_of_string 0) in
-      tot := Api.RunStats.(add !tot (add self desc))
+      tot := Api.RunStats.(aggr !tot (aggr self desc))
     done ;
-    !tot
+    (* Hide the fact that this is a sum: *)
+    { !tot with
+      num_cpu_usr = 1 ;
+      num_cpu_sys = 1 ;
+      num_mem_usr = 1 ;
+      num_mem_sys = 1 }
  end
 
 module Run =
@@ -415,10 +417,8 @@ struct
       pid = getn int_of_string 8 ;
       exit_code = getn int_of_string 9 ;
       stats_self =
-        { cpu_usr = getn float_of_string 10 ;
-          cpu_sys = getn float_of_string 11 ;
-          mem_usr = getn int_of_string 12 ;
-          mem_sys = getn int_of_string 13 } ;
+        Api.RunStats.make (getn float_of_string 10) (getn float_of_string 11)
+                          (getn float_of_string 12) (getn float_of_string 13) ;
       stats_desc = DescStats.get id ;
       children = array identity (getv identity 14) |>
                  Array.map (get % int_of_string) ;
@@ -753,10 +753,8 @@ struct
         stopped = getn float_of_string 4 ;
         exit_code = getn int_of_string 5 ;
         stats_self =
-          { cpu_usr = getn float_of_string 6 ;
-            cpu_sys = getn float_of_string 7 ;
-            mem_usr = getn int_of_string 8 ;
-            mem_sys = getn int_of_string 9 } ;
+          Api.RunStats.make (getn float_of_string 6) (getn float_of_string 7)
+                            (getn float_of_string 8) (getn float_of_string 9) ;
         stats_desc = DescStats.get top_run })
 end
 

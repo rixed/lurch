@@ -23,6 +23,10 @@ let sql_string_of_bool = function
   | true -> "t"
   | false -> "f"
 
+let option_map f = function
+  | None -> None
+  | Some a -> Some (f a)
+
 module Command =
 struct
   type operation =
@@ -277,30 +281,82 @@ end
 module RunStats =
 struct
   type t =
-    { cpu_usr : float option ;
-      cpu_sys : float option ;
-      mem_usr : int option ;
-      mem_sys : int option }
+    (* Store the stats and the number of aggregated values (useful to compute
+     * avgs and stddevs) *)
+    { cpu_usr : float option ; num_cpu_usr : int ;
+      cpu_sys : float option ; num_cpu_sys : int ;
+      mem_usr : float option ; num_mem_usr : int ;
+      mem_sys : float option ; num_mem_sys : int }
     [@@deriving json]
 
-  let none =
-    { cpu_usr = None ;
-      cpu_sys = None ;
-      mem_usr = None ;
-      mem_sys = None }
+  let make cpu_usr cpu_sys mem_usr mem_sys =
+    { cpu_usr ; num_cpu_usr = 1 ;
+      cpu_sys ; num_cpu_sys = 1 ;
+      mem_usr ; num_mem_usr = 1 ;
+      mem_sys ; num_mem_sys = 1 }
 
-  let add a b =
-    let do_op op a b =
+  let none =
+    { cpu_usr = None ; num_cpu_usr = 0 ;
+      cpu_sys = None ; num_cpu_sys = 0 ;
+      mem_usr = None ; num_mem_usr = 0 ;
+      mem_sys = None ; num_mem_sys = 0 }
+
+  (* Aggregate a and b *)
+  let aggr a b =
+    let (++) a b =
       match a, b with
-      | Some a, Some b -> Some (op a b)
+      | Some a, Some b -> Some (a +. b)
       | Some a, None | None, Some a -> Some a
       | None, None -> None in
-    let (+) = do_op (+)
-    and (+.) = do_op (+.) in
-    { cpu_usr = a.cpu_usr +. b.cpu_usr ;
-      cpu_sys = a.cpu_sys +. b.cpu_sys ;
-      mem_usr = a.mem_usr + b.mem_usr ;
-      mem_sys = a.mem_sys + b.mem_sys }
+    let num_aggr a b num_a num_b =
+      match a, b with
+      | Some _, Some _ -> num_a + num_b
+      | Some _, None -> num_a
+      | None, Some _ -> num_b
+      | None, None -> 0 in
+    { cpu_usr = a.cpu_usr ++ b.cpu_usr ;
+      num_cpu_usr = num_aggr a.cpu_usr b.cpu_usr a.num_cpu_usr b.num_cpu_usr ;
+      cpu_sys = a.cpu_sys ++ b.cpu_sys ;
+      num_cpu_sys = num_aggr a.cpu_sys b.cpu_sys a.num_cpu_sys b.num_cpu_sys ;
+      mem_usr = a.mem_usr ++ b.mem_usr ;
+      num_mem_usr = num_aggr a.mem_usr b.mem_usr a.num_mem_usr b.num_mem_usr ;
+      mem_sys = a.mem_sys ++ b.mem_sys ;
+      num_mem_sys = num_aggr a.mem_sys b.mem_sys a.num_mem_sys b.num_mem_sys }
+
+  let sub a b =
+    let (--) a b =
+      match a, b with
+      | Some a, Some b -> Some (a -. b)
+      | Some a, None -> Some a
+      | None, Some a -> Some (~-. a)
+      | None, None -> None in
+    { a with
+      cpu_usr = a.cpu_usr -- b.cpu_usr ;
+      cpu_sys = a.cpu_sys -- b.cpu_sys ;
+      mem_usr = a.mem_usr -- b.mem_usr ;
+      mem_sys = a.mem_sys -- b.mem_sys }
+
+  let avg s =
+    let div_by y x = x /. (float_of_int y) in
+    { cpu_usr = option_map (div_by s.num_cpu_usr) s.cpu_usr ; num_cpu_usr = 1 ;
+      cpu_sys = option_map (div_by s.num_cpu_sys) s.cpu_sys ; num_cpu_sys = 1 ;
+      mem_usr = option_map (div_by s.num_mem_usr) s.mem_usr ; num_mem_usr = 1 ;
+      mem_sys = option_map (div_by s.num_mem_sys) s.mem_sys ; num_mem_sys = 1 }
+
+  let square s =
+    let sq x = x *. x in
+    { s with
+      cpu_usr = option_map sq s.cpu_usr ;
+      cpu_sys = option_map sq s.cpu_sys ;
+      mem_usr = option_map sq s.mem_usr ;
+      mem_sys = option_map sq s.mem_sys }
+
+  let sqrt s =
+    { s with
+      cpu_usr = option_map sqrt s.cpu_usr ;
+      cpu_sys = option_map sqrt s.cpu_sys ;
+      mem_usr = option_map sqrt s.mem_usr ;
+      mem_sys = option_map sqrt s.mem_sys }
 
   let to_json_string = to_json_string to_json
   let to_json_buffer = to_json_buffer to_json

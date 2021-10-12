@@ -15,6 +15,8 @@
   --success-color: green;
   --failure-color: red;
   --killed-color: orange;
+  --warning-color: orange;
+  --anomaly-color: red;
 }
 
 /* Whole */
@@ -133,6 +135,15 @@ td.logline {
 }
 span.stat-na {
   color: var(--dim-color);
+  font-size: 75%;
+}
+span.stat-anomaly {
+  color: var(--anomaly-color);
+}
+span.stat-warning {
+  color: var(--warning-color);
+}
+span.stat-diff {
   font-size: 75%;
 }
 
