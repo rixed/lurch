@@ -332,15 +332,22 @@ struct
     let params =
       [| string_of_int id |] in
     let res =
+      (* FIXME: Have a recursive query from within postgres! *)
       cnx#exec ~expect:[Tuples_ok] ~params
-        "select id, cpu_usr, cpu_sys, mem_usr, mem_sys
-         from run
-         where id <> parent_run and parent_run = $1" in
-    let getv conv i j = conv (res#getvalue i j) in
+        "select id, cpu_usr, cpu_sys, mem_usr, mem_sys from run
+         where parent_run = $1" in
     let tot = ref Api.RunStats.none in
     for i = 0 to res#ntuples - 1 do
-      let desc = get (getv int_of_string i 0) in
-      tot := Api.RunStats.add !tot desc
+      let getv conv j = conv (res#getvalue i j) in
+      let getn conv j = if res#getisnull i j then None else Some (getv conv j) in
+      let self =
+        Api.RunStats.{
+          cpu_usr = getn float_of_string 1 ;
+          cpu_sys = getn float_of_string 2 ;
+          mem_usr = getn int_of_string 3 ;
+          mem_sys = getn int_of_string 4 } in
+      let desc = get (getv int_of_string 0) in
+      tot := Api.RunStats.(add !tot (add self desc))
     done ;
     !tot
  end
