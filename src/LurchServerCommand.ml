@@ -111,6 +111,11 @@ let do_monitor_run isolation_run cgroup pid stdout_r stderr_r timeout run_id =
         (* Collect cgroup data: *)
         let cpu_usr, cpu_sys = CGroup.cpuacct_read cgroup in
         let mem_usr, mem_sys = CGroup.memory_read cgroup in
+        log.info "Consumed %a+%a CPU and %a+%a RAM"
+          (Option.print Float.print) cpu_usr
+          (Option.print Float.print) cpu_sys
+          (Option.print Int.print) mem_usr
+          (Option.print Int.print) mem_sys ;
         Db.Run.stop run_id exit_code
                     ?cpu_usr ?cpu_sys ?mem_usr ?mem_sys ;
         (* Also deletes the cgroup: *)

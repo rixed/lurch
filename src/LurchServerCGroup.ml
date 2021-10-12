@@ -114,6 +114,8 @@ let memory_read cgroup =
       log.error "Cannot read memory accounting from %s: %s"
         fname (Printexc.to_string e) ;
       None in
-  (try acct_from_file "memory.memsw.max_usage_in_bytes"
-  with _ -> acct_from_file "memory.max_usage_in_bytes"),
+  let usr = acct_from_file "memory.memsw.max_usage_in_bytes" in
+  let usr =
+    if usr <> None then usr else acct_from_file "memory.max_usage_in_bytes" in
+  usr,
   acct_from_file "memory.kmem.max_usage_in_bytes"
