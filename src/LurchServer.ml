@@ -6,6 +6,7 @@ open Cmdliner
 open LurchServerLib
 
 module Api = LurchApiTypes
+module CGroup = LurchServerCGroup
 module Command = LurchServerCommand
 module Db = LurchServerDb
 module Httpd = LurchServerHttpd
@@ -62,12 +63,24 @@ let spawn_rate_limit =
   let env = Term.env_info "LURCH_SPAWN_RATE_LIMIT" in
   let doc = "Max number of allowed spawns per minutes." in
   let i = Arg.info ~env ~doc [ "max-spawn-per-min" ; "spawn-rate-limit" ] in
-  Arg.(value (opt int !LurchServerCommand.max_spawn_per_min i))
+  Arg.(value (opt int !Command.max_spawn_per_min i))
 
 let loop =
   let doc = "Keep executing the programs forever." in
   let i = Arg.info ~doc [ "loop" ] in
   Arg.(value (flag i))
+
+let cgroup_version =
+  let env = Term.env_info "CGROUP_VERSION" in
+  let doc = "What version of cgroup to use (1 or 2)." in
+  let i = Arg.info ~env ~doc [ "cgroup-version" ] in
+  Arg.(value (opt int !CGroup.version i))
+
+let cgroup_mount_point =
+  let env = Term.env_info "CGROUP_MOUNT_POINT" in
+  let doc = "Where is cgroup/cgroup2 fs mounted." in
+  let i = Arg.info ~env ~doc [ "cgroup-mount-point" ] in
+  Arg.(value (opt string !CGroup.mount_point i))
 
 let cgi dbg conninfo log_dir () =
   LurchServerLib.log_dir := log_dir ;
@@ -79,28 +92,32 @@ let cgi dbg conninfo log_dir () =
 
 let start dbg conninfo program_name () =
   init_log dbg true ;
-  let creator_user =
-    let pw = Unix.(getpwuid (getuid ())) in
-    pw.Unix.pw_name in
+  let creator_user = current_unix_user () in
   Db.init conninfo ;
   let program = Db.Program.get program_name in
   let run_id = Db.Run.insert ~creator_user program.Api.Program.command.id in
   log.info "Program %s started as run #%d." program_name run_id ;
   Db.close ()
 
-let step dbg conninfo chroot_prefix busybox log_dir spawn_rate_limit loop () =
+let step dbg conninfo chroot_prefix busybox log_dir spawn_rate_limit loop
+         cgroup_version cgroup_mount_point () =
   LurchServerChroot.chroot_prefix := chroot_prefix ;
   LurchServerChroot.busybox := busybox ;
-  LurchServerCommand.max_spawn_per_min := spawn_rate_limit ;
+  CGroup.version := cgroup_version ;
+  CGroup.mount_point := cgroup_mount_point ;
+  Command.max_spawn_per_min := spawn_rate_limit ;
   init_log dbg true ;
   Db.init conninfo ;
   Command.step loop ;
   Db.close ()
 
-let exec dbg conninfo run_id chroot_prefix busybox log_dir () =
+let exec dbg conninfo run_id chroot_prefix busybox log_dir cgroup_version
+         cgroup_mount_point () =
   LurchServerChroot.chroot_prefix := chroot_prefix ;
   LurchServerChroot.busybox := busybox ;
   LurchServerLib.log_dir := log_dir ;
+  CGroup.version := cgroup_version ;
+  CGroup.mount_point := cgroup_mount_point ;
   init_log ~with_time:false dbg true ;
   Db.init conninfo ;
   log.debug "Executing run#%d" run_id ;
@@ -147,13 +164,15 @@ let step =
   Term.(
     (const step
       $ dbg $ conninfo $ chroot_prefix $ busybox $ log_dir $ spawn_rate_limit
-      $ loop),
+      $ loop $ cgroup_version $ cgroup_mount_point),
     info ~doc:"Perform the next step(s) of execution." "step")
 
 (* Allows to execute internal commands as a separate process: *)
 let exec =
   Term.(
-    (const exec $ dbg $ conninfo $ run_id $ chroot_prefix $ busybox $ log_dir),
+    (const exec
+      $ dbg $ conninfo $ run_id $ chroot_prefix $ busybox $ log_dir
+      $ cgroup_version $ cgroup_mount_point),
     info ~doc:"Execute given run id and quit. \
                Not supposed to be called directly."
          "_exec")

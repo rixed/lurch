@@ -5,13 +5,16 @@ module Api = LurchApiTypes
 
 open LurchServerLib
 
+let version = ref 1
+let mount_point = ref "/sys/fs/cgroup"
+
 let write_into ~fname s =
   let fd = Unix.openfile fname [O_WRONLY; O_APPEND] 0o644 in
   write_or_fail ~fname fd s ;
   close_or_ignore ~fname fd
 
 let cgroup_uniq_name () =
-  Printf.sprintf "lurch/%d.%s" (Unix.getpid ()) (random_string ())
+  Printf.sprintf "lurch_%d.%s" (Unix.getpid ()) (random_string ())
 
 (* Make a command run inside a new accounting cgroup, which name is returned
  * alongside the new command: *)
@@ -32,22 +35,42 @@ let all_controllers () =
 (* Create a new accounting cgroup and return its name *)
 let create () =
   let cgroup = cgroup_uniq_name () in
-  let cmd = "cgcreate -a "^ !user ^" -t "^ !user ^
-            " -g "^ all_controllers () ^":"^ cgroup in
+  let cmd =
+    if !version = 1 then
+      "cgcreate -a "^ !user ^" -t "^ !user ^
+      " -g "^ all_controllers () ^":"^ cgroup
+    else
+      (* In theory we should create a subtree 'lurch' first, enable cpu and
+       * memory controlers in cgroup.subtree_control there, then create a
+       * subtree per cgroup. But parent cgroup wil already have those
+       * controler enabled so... *)
+      let p = !mount_point ^"/"^ cgroup in
+      "mkdir -p "^ p ^" && \
+       chown "^ !user ^" "^ p in
   system_or_fail cmd ;
   log.info "Created cgroup %S" cgroup ;
   cgroup
 
 let remove cgroup =
-  let cmd = "cgdelete "^ all_controllers () ^":"^ cgroup in
+  let cmd =
+    if !version = 1 then
+      "cgdelete "^ all_controllers () ^":"^ cgroup
+    else
+      "rmdir "^ cgroup in
   system_or_fail cmd ;
   log.info "Deleted cgroup %S" cgroup
 
 let cgroup_dir controller cgroup =
+  assert (!version = 1) ;
   "/sys/fs/cgroup/"^ controller ^"/"^ cgroup ^"/"
 
 let cgroup_file controller cgroup file =
+  assert (!version = 1) ;
   cgroup_dir controller cgroup ^ file
+
+let cgroup2_file cgroup fname =
+  assert (!version = 2) ;
+  !mount_point ^"/"^ cgroup ^"/"^ fname
 
 (* Returns both the pid and the cgroup name: *)
 let exec isolate its_stdin its_stdout its_stderr =
@@ -66,10 +89,15 @@ let exec isolate its_stdin its_stdout its_stderr =
       done ;
       (* Child: Enter the new cgroup before anything else: *)
       let pid = string_of_int (Unix.getpid ()) in
-      List.iter (fun controller ->
-        let fname = cgroup_file controller cgroup "tasks" in
+      if !version = 1 then (
+        List.iter (fun controller ->
+          let fname = cgroup_file controller cgroup "tasks" in
+          write_into ~fname pid
+        ) controllers
+      ) else (
+        let fname = cgroup2_file cgroup "cgroup.procs" in
         write_into ~fname pid
-      ) controllers ;
+      ) ;
       log.debug "Entered cgroup %s" cgroup ;
       (* From there, the actual isolation technique will dictate what to do
        * before execing the subcommand. *)
@@ -94,28 +122,49 @@ let secs_of_ticks t =
   float_of_int t /. user_hz
 
 let cpuacct_read cgroup =
-  let fname = cgroup_file "cpuacct" cgroup "cpuacct.stat" in
-  let usr = ref None and sys = ref None in
-  File.lines_of fname |> Enum.iter (fun line ->
-    match String.split_on_char ' ' line with
-    | [ "user" ; v ] -> usr := Some (int_of_string v)
-    | [ "system" ; v ] -> sys := Some (int_of_string v)
-    | _ -> log.warning "Cannot parse %S from %s" line fname) ;
-  Option.map secs_of_ticks !usr,
-  Option.map secs_of_ticks !sys
+  let get_cpu_stats fname n_usr n_sys =
+    let usr = ref None and sys = ref None in
+    File.lines_of fname |> Enum.iter (fun line ->
+      match String.split_on_char ' ' line with
+      | [ n ; v ] when n = n_usr -> usr := Some (int_of_string v)
+      | [ n ; v ] when n = n_sys -> sys := Some (int_of_string v)
+      | _ -> log.warning "Cannot parse %S from %s" line fname) ;
+    Option.map secs_of_ticks !usr,
+    Option.map secs_of_ticks !sys
+  in
+  if !version = 1 then (
+    let fname = cgroup_file "cpuacct" cgroup "cpuacct.stat" in
+    get_cpu_stats fname "user" "system"
+  ) else (
+    let fname = cgroup2_file cgroup "cpu.stat" in
+    get_cpu_stats fname "user_usec" "system_usec"
+  )
 
 let memory_read cgroup =
-  let acct_from_file n =
-    let fname = cgroup_file "memory" cgroup n in
-    try
-      File.with_file_in fname (fun ic ->
-        Some (IO.read_line ic |> int_of_string))
-    with e ->
-      log.error "Cannot read memory accounting from %s: %s"
-        fname (Printexc.to_string e) ;
-      None in
-  let usr = acct_from_file "memory.memsw.max_usage_in_bytes" in
-  let usr =
-    if usr <> None then usr else acct_from_file "memory.max_usage_in_bytes" in
-  usr,
-  acct_from_file "memory.kmem.max_usage_in_bytes"
+  if !version = 1 then (
+    let acct_from_file n =
+      let fname = cgroup_file "memory" cgroup n in
+      try
+        File.with_file_in fname (fun ic ->
+          Some (IO.read_line ic |> int_of_string))
+      with e ->
+        log.error "Cannot read memory accounting from %s: %s"
+          fname (Printexc.to_string e) ;
+        None in
+    let usr = acct_from_file "memory.memsw.max_usage_in_bytes" in
+    let usr =
+      if usr <> None then usr else acct_from_file "memory.max_usage_in_bytes" in
+    usr,
+    acct_from_file "memory.kmem.max_usage_in_bytes"
+  ) else (
+    (* For now we just sum all values in "system" memory consumption. *)
+    None,
+    try Some (
+      let fname = cgroup2_file cgroup "memory.stat" in
+      File.lines_of fname |> Enum.fold (fun sum line ->
+        match String.split_on_char ' ' line with
+        | [ _n ; v ] -> sum + (try int_of_string v with _ -> 0)
+        | _ -> sum
+      ) 0
+    ) with _ -> None
+  )
