@@ -236,3 +236,13 @@ let to_unix_signal s =
   (* [caml_convert_signal_number] does pass the actual number when it does
    * not know a signal: *)
   s
+
+let string_of_date ts =
+  let open Unix in
+  match localtime ts with
+  | exception Unix_error (EINVAL, _, _) ->
+      Printf.sprintf "Invalid date %f" ts
+  | tm ->
+      Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02d"
+        (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+        tm.tm_hour tm.tm_min tm.tm_sec

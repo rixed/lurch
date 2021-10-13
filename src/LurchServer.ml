@@ -140,6 +140,23 @@ let import dbg conninfo program_name () =
   Db.Program.insert program ;
   Db.close ()
 
+let programs dbg conninfo () =
+  Db.conninfo := conninfo ;
+  init_log ~with_time:false dbg true ;
+  Printf.printf "# name\tlast run\tlast start\tlast stop\tlast exit code\n" ;
+  let or_null conv = function
+    | None -> "n.a."
+    | Some v -> conv v in
+  Db.ListPrograms.get () |>
+  BatEnum.iter (fun p ->
+    Printf.printf "%s\t%s\t%s\t%s\t%s\n"
+      p.Api.ListPrograms.name
+      (or_null string_of_int p.last_run)
+      (or_null string_of_date p.last_start)
+      (or_null string_of_date p.last_stop)
+      (or_null string_of_int p.last_exit_code)) ;
+  Db.close ()
+
 let default =
   let sdocs = Manpage.s_common_options in
   let doc = "You rang?" in
@@ -192,9 +209,16 @@ let import =
     info ~doc:"Read a program from stdin as an s-expression."
          "import")
 
+(* Displaying internal states from the command line: *)
+
+let programs =
+  Term.(
+    (const programs $ dbg $ conninfo),
+    info ~doc:"List all defined programs." "programs")
+
 let () =
   match Term.eval_choice default
-          [ cgi ; start ; step ; exec ; export ; import ] with
+          [ cgi ; start ; step ; exec ; export ; import ; programs ] with
   | `Error _ -> exit 1
   | `Version | `Help -> exit 0
   | `Ok f ->
