@@ -28,3 +28,4 @@ oUnit-anon.cache
 qtest.targets.log
 docker/www
 www/favicon.png
+docker/busybox

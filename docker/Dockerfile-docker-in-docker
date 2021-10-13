@@ -1,5 +1,5 @@
 # vim: ft=dockerfile
-FROM debian:buster-slim
+FROM debian:bullseye-slim
 
 # Do not install recommends:
 RUN echo 'APT::Install-Recommends "0";' > \

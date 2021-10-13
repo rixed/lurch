@@ -4,19 +4,24 @@ RUN DEBIAN_FRONTEND=noninteractive \
       apt-get install --yes \
         cgroup-tools \
         lighttpd \
+        lighttpd-mod-deflate \
         postgresql
 
 RUN mkdir /lurch
 COPY www/ /lurch/www/
-# FIXME:
-COPY /home/rixed/bin/busybox /home/rixed/bin/busybox
+COPY busybox /usr/local/bin/busybox
 COPY lighttpd.conf /lurch
+COPY lighttpd.pwd /lurch
 COPY schema.sql /lurch
 COPY start /
+COPY pg_hba.conf /etc/postgresql/13/main/
 
-WORKDIR /lurch
-ENTRYPOINT [ "/usr/sbin/lighttpd", "-f", "/lurch/lighttpd.conf", "-D" ]
+ENV BUSYBOX=/usr/local/bin/busybox
+ENV LURCH_DB="user=postgres dbname=lurch"
 
 EXPOSE 80/TCP
+
+WORKDIR /lurch
+ENTRYPOINT [ "/start" ]
 
 LABEL maintainer="rixed@happyleptic.org"
