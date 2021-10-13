@@ -305,8 +305,8 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
     let id = id suff in
     match Js_browser.Document.get_element_by_id document id with
     | Some e ->
-        (* Multi-strings come within a div: *)
-        if Js_browser.Element.node_name e = "DIV" then (
+        (* Multi-strings come within a <p>: *)
+        if Js_browser.Element.node_name e = "P" then (
           (* return all values present below that, as an array of strings: *)
           let inputs = Js_browser.Element.get_elements_by_tag_name e "input" in
           let inputs =
