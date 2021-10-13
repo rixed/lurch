@@ -161,28 +161,24 @@ let runs dbg conninfo program limit () =
   Db.conninfo := conninfo ;
   init_log ~with_time:false dbg true ;
   Printf.printf "# run\tcreated\tstarted\tstopped\texit code\t\
-                 cpu self usr\tsys\tchildren usr\tsys\t\
-                 ram self usr\tsys\tchildren usr\tsys\n" ;
+                 cpu usr\tsys\tram usr\tsys\n" ;
   let or_null conv = function
     | None -> "n.a."
     | Some v -> conv v in
   Db.ListPastRuns.get ~program ~limit () |>
   BatEnum.iter (fun r ->
     let open Api in
-    Printf.printf "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
-      r.ListPastRuns.top_run
+    let stats = RunStats.aggr r.ListPastRuns.stats_self r.stats_desc in
+    Printf.printf "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+      r.top_run
       (string_of_date r.created)
       (or_null string_of_date r.started)
       (or_null string_of_date r.stopped)
       (or_null string_of_int r.exit_code)
-      (or_null string_of_secs r.stats_self.cpu_usr)
-      (or_null string_of_secs r.stats_self.cpu_sys)
-      (or_null string_of_secs r.stats_desc.cpu_usr)
-      (or_null string_of_secs r.stats_desc.cpu_sys)
-      (or_null string_of_mem r.stats_self.mem_usr)
-      (or_null string_of_mem r.stats_self.mem_sys)
-      (or_null string_of_mem r.stats_desc.mem_usr)
-      (or_null string_of_mem r.stats_desc.mem_sys)) ;
+      (or_null string_of_secs stats.cpu_usr)
+      (or_null string_of_secs stats.cpu_sys)
+      (or_null string_of_mem stats.mem_usr)
+      (or_null string_of_mem stats.mem_sys)) ;
   Db.close ()
 
 let logs dbg conninfo run follow () =
