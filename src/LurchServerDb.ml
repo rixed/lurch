@@ -666,13 +666,17 @@ struct
   let get = get_ "name"
   let of_command cmd = get_ "command" (string_of_int cmd.Api.Command.id)
 
-  let insert p =
+  let insert ?(overwrite=false) p =
     let cnx = get_cnx () in
     let command = Command.insert_or_update p.Api.Program.command in
     let params = [| p.name ; command |] in
     log.debug "Inserting program %S" p.name ;
     cnx#exec ~expect:[Command_ok] ~params
-      "insert into program (name, command) values ($1, $2)" |>
+      ("insert into program (name, command) values ($1, $2)" ^
+       if overwrite then
+         " on conflict on constraint program_pkey do \
+           update set command = excluded.command"
+       else "") |>
     ignore
 
   let delete prev_name =
