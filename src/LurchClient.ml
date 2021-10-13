@@ -20,7 +20,7 @@ let view_of_location st =
   let waiting = st.State.waiting in
   match st.location with
   | ShowError e ->
-      div [ p ~a:[class_ "error"] [ text e ] ]
+      pre ~a:[class_ "error"] [ text e ]
   | ListPastRuns lst ->
       let oldest_top_run = last_top_run lst in
       Views.list_past_runs ~waiting ~single_program:false

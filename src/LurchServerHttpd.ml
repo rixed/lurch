@@ -8,11 +8,12 @@ module Db = LurchServerDb
 let get_opt_param params name parse =
   List.assoc_opt name params |> Option.map parse
 
-exception MissingParameter of string
+exception Missing_parameter of string
+exception No_such_resource
 
 let get_param params name parse =
   try List.assoc name params |> parse
-  with Not_found -> raise (MissingParameter name)
+  with Not_found -> raise (Missing_parameter name)
 
 let list_past_runs program oldest_top_run limit =
   Db.ListPastRuns.get ?program ?oldest_top_run ?limit () |>
@@ -150,23 +151,26 @@ let serve () =
         let run_id = get_param "run" int_of_string
         and value = get_param "value" identity in
         set_variable run_id value
-    | _ ->
-        unknown ()) ;
+    | p ->
+        raise No_such_resource) ;
     Cgi.header ~status:200 () ;
     Printf.printf "%s" (IO.close_out output)
   with
-    | MissingParameter p ->
-        missing_parameter p
+    | No_such_resource ->
+        let err_msg = "No such resource" in
+        Cgi.header ~status:404 ~err_msg () ;
+        print_string "You rang?"
+    | Missing_parameter p ->
+        let err_msg = "Missing parameter" in
+        Cgi.header ~status:400 ~err_msg () ;
+        print_string ("Missing parameter "^ p)
     | e ->
-        (* Works only if nothing has been written yet: *)
         let err_msg = "Internal error" in
         Cgi.header ~err_msg ~status:500 () ;
-        Printf.printf "%s..." (IO.close_out output) ;
-        Printf.printf "<pre>%s\n%s</pre>"
+        Printf.printf "%s\n%s"
           (Printexc.to_string e)
           (Printexc.get_backtrace ())) ;
   ignore_exceptions (fun () ->
-    trailer () ;
     (* Note: It's OK to call IO.close_out several times: *)
     let msg = IO.close_out log_text in
     let len = String.length msg in

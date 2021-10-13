@@ -22,7 +22,6 @@ let log_text_io =
     ~flush:(fun () -> IO.flush log_text)
     ~close:(fun () -> ())
 
-let content_type = ref "text/html"
 let todo what = failwith ("TODO: "^ what)
 
 type 'a printer = ('a, unit IO.output, unit) Printf.t -> 'a
@@ -74,30 +73,10 @@ let log_exceptions f =
       (Printexc.get_backtrace ())
 
 let print_data b =
-  content_type := "application/json" ;
   String.print output (Buffer.contents b)
-
-let trailer () =
-  match !content_type with
-  | "text/html" ->
-      Printf.printf "<!--debug-->\n<pre>%s</pre>\n" (IO.close_out log_text)
-  | "text/plain" ->
-      Printf.printf "\n%s\n" (IO.close_out log_text)
-  | _ ->
-      ()
 
 let todo what =
   failwith ("TODO: "^ what)
-
-let unknown () =
-  let err_msg = "No such resource" in
-  Cgi.header ~status:404 ~err_msg () ;
-  print_string "You rang?"
-
-let missing_parameter p =
-  let err_msg = "Missing parameter" in
-  Cgi.header ~status:400 ~err_msg () ;
-  print_string ("Missing parameter "^ p)
 
 let array_find_mapi f a =
   let res = ref None in
