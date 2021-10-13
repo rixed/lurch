@@ -312,7 +312,10 @@ let start_terminal run =
       let env =
         [| "BUSYBOX="^ !Chroot.busybox ;
            "LURCH_CHROOTS="^ !Chroot.chroot_prefix ;
-           "LURCH_LOG_DIR="^ !log_dir |] in
+           "LURCH_LOG_DIR="^ !log_dir ;
+           "LURCH_DB="^ !Db.conninfo ;
+           "CGROUP_VERSION="^ string_of_int !CGroup.version ;
+           "CGROUP_MOUNT_POINT="^ !CGroup.mount_point |] in
       start_process "/bin/sh" ~args ~env ~timeout:!command_timeout run
   | Spawn { program } ->
       let program = Api.Run.var_expand run.env program in
@@ -742,6 +745,6 @@ let exec run_id =
       let image = Api.Run.var_expand run.env image in
       Docker.create run.id image
   | _ ->
-      Printf.sprintf "Cannot exec_ command %s"
+      Printf.sprintf "Cannot exec command %s"
         (Lang.string_of_command run.command) |>
       failwith

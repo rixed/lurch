@@ -14,7 +14,7 @@ let write_into ~fname s =
   close_or_ignore ~fname fd
 
 let cgroup_uniq_name () =
-  Printf.sprintf "lurch_%d.%s" (Unix.getpid ()) (random_string ())
+  Printf.sprintf "lurch/%d.%s" (Unix.getpid ()) (random_string ())
 
 (* Make a command run inside a new accounting cgroup, which name is returned
  * alongside the new command: *)
@@ -56,7 +56,8 @@ let remove cgroup =
     if !version = 1 then
       "cgdelete "^ all_controllers () ^":"^ cgroup
     else
-      "rmdir "^ cgroup in
+      let p = !mount_point ^"/"^ cgroup in
+      "rmdir "^ p in
   system_or_fail cmd ;
   log.info "Deleted cgroup %S" cgroup
 

@@ -17,10 +17,6 @@ let () =
 let cnx = ref None
 let conninfo = ref ""
 
-let init conninfo_ =
-  log.debug "Connecting to DB using: %s" conninfo_ ;
-  conninfo := conninfo_
-
 let connect () =
   cnx := Some (new connection ~conninfo:!conninfo ())
 

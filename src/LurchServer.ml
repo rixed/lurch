@@ -84,16 +84,16 @@ let cgroup_mount_point =
 
 let cgi dbg conninfo log_dir () =
   LurchServerLib.log_dir := log_dir ;
+  Db.conninfo := conninfo ;
   Printexc.record_backtrace true ;
   init_log dbg false ;
-  Db.init conninfo ;
   Httpd.serve () ;
   Db.close ()
 
 let start dbg conninfo program_name () =
+  Db.conninfo := conninfo ;
   init_log dbg true ;
   let creator_user = current_unix_user () in
-  Db.init conninfo ;
   let program = Db.Program.get program_name in
   let run_id = Db.Run.insert ~creator_user program.Api.Program.command.id in
   log.info "Program %s started as run #%d." program_name run_id ;
@@ -106,8 +106,8 @@ let step dbg conninfo chroot_prefix busybox log_dir spawn_rate_limit loop
   CGroup.version := cgroup_version ;
   CGroup.mount_point := cgroup_mount_point ;
   Command.max_spawn_per_min := spawn_rate_limit ;
+  Db.conninfo := conninfo ;
   init_log dbg true ;
-  Db.init conninfo ;
   Command.step loop ;
   Db.close ()
 
@@ -118,25 +118,25 @@ let exec dbg conninfo run_id chroot_prefix busybox log_dir cgroup_version
   LurchServerLib.log_dir := log_dir ;
   CGroup.version := cgroup_version ;
   CGroup.mount_point := cgroup_mount_point ;
+  Db.conninfo := conninfo ;
   init_log ~with_time:false dbg true ;
-  Db.init conninfo ;
   log.debug "Executing run#%d" run_id ;
   Command.exec run_id ;
   Db.close ()
 
 let export dbg conninfo program_name () =
+  Db.conninfo := conninfo ;
   init_log ~with_time:false dbg true ;
-  Db.init conninfo ;
   let program = Db.Program.get program_name in
   print_string (Lang.string_of_command program.Api.Program.command) ;
   print_newline () ;
   Db.close ()
 
 let import dbg conninfo program_name () =
+  Db.conninfo := conninfo ;
   init_log ~with_time:false dbg true ;
   let command = BatIO.(read_all stdin) |> Lang.command_of_string in
   let program = Api.Program.{ name = program_name ; command ; created = 0. } in
-  Db.init conninfo ;
   Db.Program.insert program ;
   Db.close ()
 
