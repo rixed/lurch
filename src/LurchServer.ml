@@ -157,6 +157,34 @@ let programs dbg conninfo () =
       (or_null string_of_int p.last_exit_code)) ;
   Db.close ()
 
+let runs dbg conninfo program limit () =
+  Db.conninfo := conninfo ;
+  init_log ~with_time:false dbg true ;
+  Printf.printf "# run\tcreated\tstarted\tstopped\texit code\t\
+                 cpu self usr\tsys\tchildren usr\tsys\t\
+                 ram self usr\tsys\tchildren usr\tsys\n" ;
+  let or_null conv = function
+    | None -> "n.a."
+    | Some v -> conv v in
+  Db.ListPastRuns.get ~program ~limit () |>
+  BatEnum.iter (fun r ->
+    let open Api in
+    Printf.printf "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+      r.ListPastRuns.top_run
+      (string_of_date r.created)
+      (or_null string_of_date r.started)
+      (or_null string_of_date r.stopped)
+      (or_null string_of_int r.exit_code)
+      (or_null string_of_secs r.stats_self.cpu_usr)
+      (or_null string_of_secs r.stats_self.cpu_sys)
+      (or_null string_of_secs r.stats_desc.cpu_usr)
+      (or_null string_of_secs r.stats_desc.cpu_sys)
+      (or_null string_of_mem r.stats_self.mem_usr)
+      (or_null string_of_mem r.stats_self.mem_sys)
+      (or_null string_of_mem r.stats_desc.mem_usr)
+      (or_null string_of_mem r.stats_desc.mem_sys)) ;
+  Db.close ()
+
 let default =
   let sdocs = Manpage.s_common_options in
   let doc = "You rang?" in
@@ -216,9 +244,19 @@ let programs =
     (const programs $ dbg $ conninfo),
     info ~doc:"List all defined programs." "programs")
 
+let num_runs =
+  let i = Arg.info ~doc:"Number of runs to display." [ "c" ; "count" ] in
+  Arg.(value (opt int 16 i))
+
+let runs =
+  Term.(
+    (const runs $ dbg $ conninfo $ program $ num_runs),
+    info ~doc:"List past runs." "runs")
+
 let () =
   match Term.eval_choice default
-          [ cgi ; start ; step ; exec ; export ; import ; programs ] with
+          [ cgi ; start ; step ; exec ; export ; import ; programs ; runs ]
+  with
   | `Error _ -> exit 1
   | `Version | `Help -> exit 0
   | `Ok f ->

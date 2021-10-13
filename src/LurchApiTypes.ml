@@ -27,6 +27,41 @@ let option_map f = function
   | None -> None
   | Some a -> Some (f a)
 
+(* Some formatters for the stats: *)
+
+let string_of_scales ~skip_zero scales f =
+  if f <= 0. then "0" else
+  (* Beware of small int size! *)
+  let rec loop has_output f = function
+    | [] ->
+        if f = 0. && (skip_zero || not has_output) then
+          ""
+        else
+          string_of_float f
+    | (scale, pref) :: scales ->
+        if f >= scale then
+          let hi = int_of_float (f /. scale) in
+          let lo = f -. (float_of_int hi) *. scale in
+          string_of_int hi ^ pref ^ loop true lo scales
+        else
+          if skip_zero || not has_output then
+            loop has_output f scales
+          else
+            "0" ^ pref ^ loop true f scales in
+  loop false f scales
+
+let string_of_mem =
+  string_of_scales ~skip_zero:true
+    [ 1024.*.1024.*.1024., "GiB" ;
+      1024.*.1024., "MiB" ;
+      1024., "KiB" ]
+
+let string_of_secs =
+  string_of_scales ~skip_zero:false
+    [ 3600.*.24., "d" ;
+      3600., "h" ;
+      60., "m" ]
+
 module Command =
 struct
   type operation =

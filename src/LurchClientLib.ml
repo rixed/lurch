@@ -394,39 +394,6 @@ let run_http_put ~url ~payload ~callback () =
 let run_http_del ~url ~callback () =
   run_http ~command:"DELETE" ~url ~callback ()
 
-let string_of_scales ~skip_zero scales f =
-  if f <= 0. then "0" else
-  (* Beware of small int size! *)
-  let rec loop has_output f = function
-    | [] ->
-        if f = 0. && (skip_zero || not has_output) then
-          ""
-        else
-          string_of_float f
-    | (scale, pref) :: scales ->
-        if f >= scale then
-          let hi = int_of_float (f /. scale) in
-          let lo = f -. (float_of_int hi) *. scale in
-          string_of_int hi ^ pref ^ loop true lo scales
-        else
-          if skip_zero || not has_output then
-            loop has_output f scales
-          else
-            "0" ^ pref ^ loop true f scales in
-  loop false f scales
-
-let string_of_mem =
-  string_of_scales ~skip_zero:true
-    [ 1024.*.1024.*.1024., "GiB" ;
-      1024.*.1024., "MiB" ;
-      1024., "KiB" ]
-
-let string_of_secs =
-  string_of_scales ~skip_zero:false
-    [ 3600.*.24., "d" ;
-      3600., "h" ;
-      60., "m" ]
-
 (* Display the stats of a run: *)
 let stats self desc =
   let add conv self desc what =
@@ -445,8 +412,8 @@ let stats self desc =
     p [ text (name ^ s1 ^ sep ^ s2) ] in
   div [
     metric "CPU: "
-      (add string_of_secs self.Api.RunStats.cpu_usr desc.Api.RunStats.cpu_usr "usr")
-      (add string_of_secs self.cpu_sys desc.cpu_sys "sys") ;
+      (add Api.string_of_secs self.Api.RunStats.cpu_usr desc.Api.RunStats.cpu_usr "usr")
+      (add Api.string_of_secs self.cpu_sys desc.cpu_sys "sys") ;
     metric "RAM: "
-      (add string_of_mem self.mem_usr desc.mem_usr "usr")
-      (add string_of_mem self.mem_sys desc.mem_sys "sys") ]
+      (add Api.string_of_mem self.mem_usr desc.mem_usr "usr")
+      (add Api.string_of_mem self.mem_sys desc.mem_sys "sys") ]

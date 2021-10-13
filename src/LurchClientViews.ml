@@ -177,14 +177,22 @@ let list_past_runs ~single_program ~waiting ~on_more runs =
                 [ text (date_of_ts (option_get r.started)) ] ;
               td ~a:(class_ "click time" :: goto_run)
                 [ text (date_of_tsn (r.stopped) |? "running") ] ]) @
-          [ td_stat string_of_secs avg_self.cpu_usr stddev_self.cpu_usr r.stats_self.cpu_usr ;
-            td_stat string_of_secs avg_self.cpu_sys stddev_self.cpu_sys r.stats_self.cpu_sys ;
-            td_stat string_of_secs avg_desc.cpu_usr stddev_desc.cpu_usr r.stats_desc.cpu_usr ;
-            td_stat string_of_secs avg_desc.cpu_sys stddev_desc.cpu_sys r.stats_desc.cpu_sys ;
-            td_stat string_of_mem avg_self.mem_usr stddev_self.mem_usr r.stats_self.mem_usr ;
-            td_stat string_of_mem avg_self.mem_sys stddev_self.mem_sys r.stats_self.mem_sys ;
-            td_stat string_of_mem avg_desc.mem_usr stddev_desc.mem_usr r.stats_desc.mem_usr ;
-            td_stat string_of_mem avg_desc.mem_sys stddev_desc.mem_sys r.stats_desc.mem_sys ;
+          [ td_stat Api.string_of_secs avg_self.cpu_usr stddev_self.cpu_usr
+                    r.stats_self.cpu_usr ;
+            td_stat Api.string_of_secs avg_self.cpu_sys stddev_self.cpu_sys
+                    r.stats_self.cpu_sys ;
+            td_stat Api.string_of_secs avg_desc.cpu_usr stddev_desc.cpu_usr
+                    r.stats_desc.cpu_usr ;
+            td_stat Api.string_of_secs avg_desc.cpu_sys stddev_desc.cpu_sys
+                    r.stats_desc.cpu_sys ;
+            td_stat Api.string_of_mem avg_self.mem_usr stddev_self.mem_usr
+                    r.stats_self.mem_usr ;
+            td_stat Api.string_of_mem avg_self.mem_sys stddev_self.mem_sys
+                    r.stats_self.mem_sys ;
+            td_stat Api.string_of_mem avg_desc.mem_usr stddev_desc.mem_usr
+                    r.stats_desc.mem_usr ;
+            td_stat Api.string_of_mem avg_desc.mem_sys stddev_desc.mem_sys
+                    r.stats_desc.mem_sys ;
             let outcome, color = outcome r.exit_code in
             let bgcolor = bgcolor_of color in
             td ~a:(class_ "click" :: bgcolor :: goto_run)
