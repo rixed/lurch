@@ -122,23 +122,26 @@ let secs_of_ticks t =
   let user_hz = 100. in
   float_of_int t /. user_hz
 
+let secs_of_usec t =
+  float_of_int t /. 1_000_000.
+
 let cpuacct_read cgroup =
-  let get_cpu_stats fname n_usr n_sys =
+  let get_cpu_stats fname n_usr n_sys to_secs =
     let usr = ref None and sys = ref None in
     File.lines_of fname |> Enum.iter (fun line ->
       match String.split_on_char ' ' line with
       | [ n ; v ] when n = n_usr -> usr := Some (int_of_string v)
       | [ n ; v ] when n = n_sys -> sys := Some (int_of_string v)
       | _ -> log.warning "Cannot parse %S from %s" line fname) ;
-    Option.map secs_of_ticks !usr,
-    Option.map secs_of_ticks !sys
+    Option.map to_secs !usr,
+    Option.map to_secs !sys
   in
   if !version = 1 then (
     let fname = cgroup_file "cpuacct" cgroup "cpuacct.stat" in
-    get_cpu_stats fname "user" "system"
+    get_cpu_stats fname "user" "system" secs_of_ticks
   ) else (
     let fname = cgroup2_file cgroup "cpu.stat" in
-    get_cpu_stats fname "user_usec" "system_usec"
+    get_cpu_stats fname "user_usec" "system_usec" secs_of_usec
   )
 
 let memory_read cgroup =
