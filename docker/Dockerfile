@@ -13,6 +13,7 @@ COPY busybox /usr/local/bin/busybox
 COPY lighttpd.conf /lurch
 COPY lighttpd.pwd /lurch
 COPY schema.sql /lurch
+COPY populate.sql /lurch
 COPY start /
 COPY pg_hba.conf /etc/postgresql/13/main/
 

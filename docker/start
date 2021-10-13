@@ -6,6 +6,7 @@ if ! psql -U postgres -d lurch --quiet -c '' 2>/dev/null; then
   echo Initializing the database.
   /usr/bin/pg_ctlcluster 13 main start
   psql -U postgres -f /dev/stdin --quiet < /lurch/schema.sql
+  psql -U postgres -f /dev/stdin --quiet < /lurch/populate.sql
 fi
 
 /usr/sbin/lighttpd -f /lurch/lighttpd.conf

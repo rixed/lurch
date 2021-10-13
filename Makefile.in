@@ -137,18 +137,20 @@ docker-in-docker: docker/Dockerfile-docker-in-docker
 	   fi ;\
 	 fi
 
-WWW_SOURCES = www/lurch www/run-lurch www/spa.js www/index.html www/main.css
+WWW_SOURCES = \
+	www/lurch www/run-lurch www/spa.js www/index.html www/main.css www/favicon.png
 
 docker/busybox: $(BUSYBOX)
 	ln $< $@
 
 docker: \
 		docker/Dockerfile docker/start docker/lighttpd.conf docker/busybox \
-		db/schema.sql $(WWW_SOURCES)
+		db/schema.sql db/populate.sql $(WWW_SOURCES)
 	$(RM) -r docker/www
 	mkdir -p docker/www
 	cp $(WWW_SOURCES) docker/www
 	cp db/schema.sql docker/
+	cp db/populate.sql docker/
 	strip docker/www/lurch
 	docker build -t rixed/lurch -f $< docker/
 	@if test `whoami` = rixed; then \
