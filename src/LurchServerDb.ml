@@ -673,7 +673,7 @@ struct
   let insert p =
     let cnx = get_cnx () in
     let command = Command.insert_or_update p.Api.Program.command in
-    let params = [| p.Api.Program.name ; command |] in
+    let params = [| p.name ; command |] in
     log.debug "Inserting program %S" p.name ;
     cnx#exec ~expect:[Command_ok] ~params
       "insert into program (name, command) values ($1, $2)" |>

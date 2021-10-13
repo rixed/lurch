@@ -1,5 +1,6 @@
 #!/bin/sh
 
 #export LURCH_DEBUG=1
+export LURCH_LOG_DIR="/tmp/lurch"
 
 ./lurch cgi

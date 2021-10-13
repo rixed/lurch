@@ -61,17 +61,6 @@ let list_past_runs ~single_program ~waiting ~on_more runs =
   let len = Array.length runs in
   (* For each column, for each program, compute the average and the stddev,
    * first by computing the sums, then the averages, then also the stddev: *)
-  let log_hash what h =
-    let string_of_opt_float = function
-      | None -> "None"
-      | Some f -> string_of_float f in
-    Hashtbl.iter (fun k (_self, desc) ->
-      log (what ^" for "^ k ^":") ;
-      log ("RAM desc usr = "^ string_of_opt_float desc.Api.RunStats.mem_usr ^
-           " (num="^ string_of_int desc.Api.RunStats.num_mem_usr ^")") ;
-      log ("RAM desc sys = "^ string_of_opt_float desc.Api.RunStats.mem_sys ^
-           " (num="^ string_of_int desc.Api.RunStats.num_mem_sys ^")")
-    ) h in
   let avgs = Hashtbl.create 50 in
   Array.iter (fun r ->
     let k = r.Api.ListPastRuns.name in
@@ -311,7 +300,7 @@ let program_editor ~waiting ~editable program last_runs current_location =
                 `SetLocation (State.ConfirmDeleteProgram {
                   program ; back = current_location }))
             ] else [])) ] ] ] ;
-    if saved_name = "" then
+    if saved_name = "" || Array.length last_runs = 0 then
       no_elt
     else div [
       (* List of past runs *)

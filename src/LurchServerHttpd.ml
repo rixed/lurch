@@ -183,4 +183,3 @@ let serve () =
         let fd = openfile fname [O_WRONLY; O_APPEND; O_CREAT; O_CLOEXEC] 0o644 in
         single_write_substring fd (msg ^ "\n") 0 (len + 1) |> ignore ;
         close fd) ()
-

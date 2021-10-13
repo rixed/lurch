@@ -45,7 +45,7 @@ let log_dir =
 
 let conninfo =
   let env = Term.env_info "LURCH_DB" in
-  let doc = "Conninfo string to join Postgresql database." in
+  let doc = "Conninfo string to Postgresql database." in
   let i = Arg.info ~env ~doc [ "db" ] in
   let def = "host=localhost port=5433 dbname=lurch password=secret user=postgres" in
   Arg.(value (opt string def i))
@@ -148,7 +148,7 @@ let step =
 let exec =
   Term.(
     (const exec $ dbg $ conninfo $ run_id $ chroot_prefix $ busybox $ log_dir),
-    info ~doc:"execute given run id and quit. \
+    info ~doc:"Execute given run id and quit. \
                Not supposed to be called directly."
          "_exec")
 
