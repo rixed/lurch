@@ -700,7 +700,7 @@ let expire_old_runs () =
     ) olds
   )
 
-let step () =
+let rec step loop =
   (* Timeout unstarted top run commands, as there could be tons of old ones if the
    * stepper was not run for long *)
   expire_old_runs () ;
@@ -724,7 +724,10 @@ let step () =
   (* Handle for loops *)
   step_for_loops () ;
   (* Start all waiting terminals: *)
-  step_waiting ()
+  step_waiting () ;
+  if loop then (
+    Unix.sleep 1 ;
+    step loop)
 
 (* Executes directly the given run. The run is supposed to be an internal
  * command, such as chroot creation. It is monitored already by another
