@@ -158,14 +158,32 @@ let memory_read cgroup =
     usr,
     acct_from_file "memory.kmem.max_usage_in_bytes"
   ) else (
-    (* For now we just sum all values in "system" memory consumption. *)
-    None,
-    try Some (
+    (* Try to distinguish between user and system: *)
+    let is_usr = function
+      | "anon" | "anon_thp" -> true
+      | _ -> false
+    and is_sys = function
+      | "file" | "kernel_stack" | "pagetables" | "percpu" | "sock" | "shmem"
+      | "file_mapped" | "file_dirty" | "file_writeback" | "swapcached"
+      | "file_thp" | "shmem_thp" | "inactive_anon" | "active_anon"
+      | "inactive_file" | "active_file" | "unevictable" | "slab" -> true
+      | _ -> false in
+    try
       let fname = cgroup2_file cgroup "memory.stat" in
-      File.lines_of fname |> Enum.fold (fun sum line ->
-        match String.split_on_char ' ' line with
-        | [ _n ; v ] -> Int64.add sum (try Int64.of_string v with _ -> 0L)
-        | _ -> sum
-      ) 0L
-    ) with _ -> None
+      let usr, sys =
+        File.lines_of fname |> Enum.fold (fun (usr, sys as prev) line ->
+          match String.split_on_char ' ' line with
+          | [ n ; v ] ->
+              let v = try Int64.of_string v with _ -> 0L in
+              if is_usr n then
+                Int64.add usr v, sys
+              else if is_sys n then
+                usr, Int64.add sys v
+              else
+                prev
+          | _ ->
+              prev
+        ) (0L, 0L) in
+      Some usr, Some sys
+    with _ -> None, None
   )
