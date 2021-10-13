@@ -184,17 +184,18 @@ let runs dbg conninfo program limit () =
 let logs dbg conninfo run follow () =
   Db.conninfo := conninfo ;
   init_log ~with_time:false dbg true ;
-  Printf.printf "# run\ttime\n" ;
+  Printf.printf "# run\ttime\n" ;  (* thus the initial prev_fd is 1 *)
   let rec loop offset =
-    let count =
+    let count, _ =
       Db.ListLogLines.get ~offset ?limit:None ~run |>
-      BatEnum.fold (fun count l ->
-        Printf.(if l.Api.LogLine.fd = 1 then printf else eprintf) "%d\t%s\t%s\n"
+      BatEnum.fold (fun (count, prev_fd) l ->
+        if prev_fd <> l.Api.LogLine.fd then BatIO.flush_all () ;
+        Printf.(if l.fd = 1 then printf else eprintf) "%d\t%s\t%s\n"
           l.run
           (string_of_date l.time)
           l.line ;
-        count + 1
-      ) 0 in
+        count + 1, l.fd
+      ) (0, 1) in
     if follow then (
       BatIO.flush_all () ;
       Unix.sleepf 0.2 ;

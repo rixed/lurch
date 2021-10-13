@@ -60,6 +60,7 @@ let rec string_of_sexpr =
     | Str s ->
         prev ^ sep ^ "\"" ^ String.escaped s ^ "\""
     | Lst lst ->
+        (* Newline + more indentation at each new list opened: *)
         let prev, indent =
           if prev = "" then
             prev, indent
