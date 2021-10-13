@@ -102,6 +102,22 @@ let exec dbg conninfo run_id chroot_prefix busybox log_dir () =
   Command.exec run_id ;
   Db.close ()
 
+let export dbg conninfo program_name () =
+  init_log ~with_time:false dbg true ;
+  Db.init conninfo ;
+  let program = Db.Program.get program_name in
+  print_string (Lang.string_of_command program.Api.Program.command) ;
+  print_newline () ;
+  Db.close ()
+
+let import dbg conninfo program_name () =
+  init_log ~with_time:false dbg true ;
+  let command = BatIO.(read_all stdin) |> Lang.command_of_string in
+  let program = Api.Program.{ name = program_name ; command ; created = 0. } in
+  Db.init conninfo ;
+  Db.Program.insert program ;
+  Db.close ()
+
 let default =
   let sdocs = Manpage.s_common_options in
   let doc = "You rang?" in
@@ -136,8 +152,24 @@ let exec =
                Not supposed to be called directly."
          "_exec")
 
+(* Import/Export of programs makes it easier to use revision control tools
+ * on them: *)
+
+let export =
+  Term.(
+    (const export $ dbg $ conninfo $ program),
+    info ~doc:"Dump a program as an s-expression that can be later imported."
+         "export")
+
+let import =
+  Term.(
+    (const import $ dbg $ conninfo $ program),
+    info ~doc:"Read a program from stdin as an s-expression."
+         "import")
+
 let () =
-  match Term.eval_choice default [ cgi ; start ; step ; exec ] with
+  match Term.eval_choice default
+          [ cgi ; start ; step ; exec ; export ; import ] with
   | `Error _ -> exit 1
   | `Version | `Help -> exit 0
   | `Ok f ->
