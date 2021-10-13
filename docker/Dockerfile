@@ -9,6 +9,7 @@ RUN DEBIAN_FRONTEND=noninteractive \
 
 RUN mkdir /lurch
 COPY www/ /lurch/www/
+RUN ln -s /lurch/www/lurch /usr/bin/lurch
 COPY busybox /usr/local/bin/busybox
 COPY lighttpd.conf /lurch
 COPY lighttpd.pwd /lurch
