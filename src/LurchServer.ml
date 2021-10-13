@@ -185,6 +185,28 @@ let runs dbg conninfo program limit () =
       (or_null string_of_mem r.stats_desc.mem_sys)) ;
   Db.close ()
 
+let logs dbg conninfo run follow () =
+  Db.conninfo := conninfo ;
+  init_log ~with_time:false dbg true ;
+  Printf.printf "# run\ttime\n" ;
+  let rec loop offset =
+    let count =
+      Db.ListLogLines.get ~offset ?limit:None ~run |>
+      BatEnum.fold (fun count l ->
+        Printf.(if l.Api.LogLine.fd = 1 then printf else eprintf) "%d\t%s\t%s\n"
+          l.run
+          (string_of_date l.time)
+          l.line ;
+        count + 1
+      ) 0 in
+    if follow then (
+      BatIO.flush_all () ;
+      Unix.sleepf 0.2 ;
+      loop (offset + count)
+    ) in
+  loop 0 ;
+  Db.close ()
+
 let default =
   let sdocs = Manpage.s_common_options in
   let doc = "You rang?" in
@@ -253,10 +275,23 @@ let runs =
     (const runs $ dbg $ conninfo $ program $ num_runs),
     info ~doc:"List past runs." "runs")
 
+let run_id =
+  let i = Arg.info ~doc:"The run number whose logs to print." [] in
+  Arg.(required (pos 0 (some int) None i))
+
+let follow =
+  let i = Arg.info ~doc:"Wait for new logs to display." [ "f" ] in
+  Arg.(value (flag i))
+
+let logs =
+  Term.(
+    (const logs $ dbg $ conninfo $ run_id $ follow),
+    info ~doc:"Display the logs of a given run." "logs")
+
 let () =
   match Term.eval_choice default
-          [ cgi ; start ; step ; exec ; export ; import ; programs ; runs ]
-  with
+          [ cgi ; start ; step ; exec ; export ; import ; programs ; runs ;
+            logs ] with
   | `Error _ -> exit 1
   | `Version | `Help -> exit 0
   | `Ok f ->
