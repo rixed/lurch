@@ -1,6 +1,12 @@
 open Batteries
 
-let user = ref (try Sys.getenv "USER" with Not_found -> "JohnDoe")
+let current_unix_user () =
+  let pw = Unix.(getpwuid (getuid ())) in
+  pw.Unix.pw_name
+
+(* Unix user to switch to before executing external commands.
+ * Try $USER then current unix user. *)
+let user = ref (try Sys.getenv "USER" with Not_found -> current_unix_user ())
 
 let log_dir = ref "/tmp/lurch"
 
