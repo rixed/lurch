@@ -472,16 +472,16 @@ struct
          string_of_int exit_code ;
          or_null string_of_float cpu_usr ;
          or_null string_of_float cpu_sys ;
-         or_null string_of_int mem_usr ;
-         or_null string_of_int mem_sys |] in
+         or_null Int64.to_string mem_usr ;
+         or_null Int64.to_string mem_sys |] in
     log.debug "Stopping run %d with exit_code %d, \
                CPU consumption: %a usr + %a sys, \
                MEM consumption: %a ram+swp + %a kernel"
       run_id exit_code
       (Option.print Float.print) cpu_usr
       (Option.print Float.print) cpu_sys
-      (Option.print Int.print) mem_usr
-      (Option.print Int.print) mem_sys ;
+      (Option.print Int64.print) mem_usr
+      (Option.print Int64.print) mem_sys ;
     try
       cnx#exec ~expect:[Command_ok] ~params
         "update run set stopped = now(), \

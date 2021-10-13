@@ -187,8 +187,8 @@ create table run (
   cpu_usr float,
   cpu_sys float,
   -- max memory, ram+swap and then in the kernel, in bytes:
-  mem_usr int,
-  mem_sys int,
+  mem_usr bigint,
+  mem_sys bigint,
 
   -- 0..: process exit code
   -- -128..-1: killed by signal -value

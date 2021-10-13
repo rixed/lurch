@@ -146,7 +146,7 @@ let memory_read cgroup =
       let fname = cgroup_file "memory" cgroup n in
       try
         File.with_file_in fname (fun ic ->
-          Some (IO.read_line ic |> int_of_string))
+          Some (IO.read_line ic |> Int64.of_string))
       with e ->
         log.error "Cannot read memory accounting from %s: %s"
           fname (Printexc.to_string e) ;
@@ -163,8 +163,8 @@ let memory_read cgroup =
       let fname = cgroup2_file cgroup "memory.stat" in
       File.lines_of fname |> Enum.fold (fun sum line ->
         match String.split_on_char ' ' line with
-        | [ _n ; v ] -> sum + (try int_of_string v with _ -> 0)
+        | [ _n ; v ] -> Int64.add sum (try Int64.of_string v with _ -> 0L)
         | _ -> sum
-      ) 0
+      ) 0L
     ) with _ -> None
   )
