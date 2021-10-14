@@ -9,7 +9,7 @@ db_port=5433
 db_pwd=secret
 db_docker_image=postgres
 
-# Create a docker instance of postgres and populate a database:
+# Create a docker instance of postgres:
 
 db_container=$(docker run --name $instance_name -p $db_port:5432 -e POSTGRES_PASSWORD=$db_pwd --detach $db_docker_image -c work_mem=1GB)
 
@@ -23,9 +23,6 @@ done
 
 echo 'Creating database (message about DB not existing is OK)...'
 docker exec -i $instance_name psql --quiet -U postgres -f /dev/stdin --quiet < db/schema.sql
-
-echo 'Populating database...'
-docker exec -i $instance_name psql --quiet -U postgres -f /dev/stdin --quiet < db/populate.sql
 
 # Also:
 echo 'Creating cgroup'

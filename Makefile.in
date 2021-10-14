@@ -145,12 +145,12 @@ docker/busybox: $(BUSYBOX)
 
 docker: \
 		docker/Dockerfile docker/start docker/lighttpd.conf docker/busybox \
-		db/schema.sql db/populate.sql $(WWW_SOURCES)
+		db/schema.sql db/populate $(WWW_SOURCES)
 	$(RM) -r docker/www
 	mkdir -p docker/www
 	cp $(WWW_SOURCES) docker/www
 	cp db/schema.sql docker/
-	cp db/populate.sql docker/
+	cp db/populate docker/
 	strip docker/www/lurch
 	docker build -t rixed/lurch -f $< docker/
 	@if test `whoami` = rixed; then \

@@ -113,11 +113,51 @@ This time, instead of using a docker image this program starts by creating a new
 
 Those programs are very simple and only make sure that the basic assumptions to run more complex programs are met.
 
-The third and last demo program is marginally more useful, as it download, compile and test lurch itself:
+The third and last demo program is marginally more useful, as it download, compile and test lurch itself, after having installed all its dependencies:
 
 ```shell
 % docker exec lurch-demo lurch export 'test build'
-...TODO...
+(isolate
+  (docker "debian:stable-slim")
+  (sequence
+    (exec "/usr/bin/apt-get"
+      ("update")
+      () null)
+    (exec "/usr/bin/apt-get"
+      ("install" "--quiet" "--yes" "git" "gcc" "make" "ocaml" "opam"
+       "libpq-dev" "imagemagick")
+      () null)
+    (exec "/usr/bin/opam"
+      ("init" "--no-setup" "--disable-sandboxing")
+      () null)
+    (exec "/usr/bin/opam"
+      ("update" "--yes")
+      () null)
+    (exec "/usr/bin/opam"
+      ("repo" "add" "--set-default" "ocalme"
+       "git://github.com/rixed/ocalme-opam-repository.git")
+      () null)
+    (exec "/usr/bin/opam"
+      ("repo" "priority" "ocalme" "1")
+      () null)
+    (exec "/usr/bin/opam"
+      ("update" "--yes")
+      () null)
+    (exec "/usr/bin/opam"
+      ("install" "--yes" "batteries" "cgi" "cmdliner" "js_of_ocaml"
+       "js_of_ocaml-ppx" "js_of_ocaml-ppx_deriving_json" "ppx_deriving"
+       "ocamlfind" "postgresql" "qtest" "syslog" "ocaml-vdom")
+      () null)
+    (exec "/usr/bin/git"
+      ("clone" "https://github.com/rixed/lurch.git")
+      () null)
+    (exec "/bin/sh"
+      ("-c" "cd lurch && ./configure && make && make check")
+      ("OPAM_SWITCH_PREFIX=/root/.opam/default"
+       "CAML_LD_LIBRARY_PATH=/root/.opam/default/lib/stublibs:/usr/local/lib/ocaml/4.11.1/stublibs:/usr/lib/ocaml/stublibs"
+       "OCAML_TOPLEVEL_PATH=/root/.opam/default/lib/toplevel"
+       "MANPATH=:/root/.opam/default/man"
+       "PATH=/root/.opam/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin") null)))
 ```
 
 This program checks that lurch itself can be build on Debian stable and that the test suite succeeds.
