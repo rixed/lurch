@@ -11,4 +11,8 @@ fi
 
 /usr/sbin/lighttpd -f /lurch/lighttpd.conf
 
-exec /lurch/www/lurch step --loop
+# FIXME: https://github.com/rixed/lurch/issues/60
+#exec /lurch/www/lurch step --loop
+while sleep 1; do
+  /lurch/www/lurch step
+done
