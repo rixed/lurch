@@ -1,6 +1,7 @@
 (* Simple HTPP server that servers spa.js, and convert any query into a
  * postgresql query and return the result. Yes of course this is secure.
  * Here is only the cmd line processing. *)
+open Batteries
 open Cmdliner
 
 open LurchServerLib
@@ -135,7 +136,7 @@ let export dbg conninfo program_name () =
 let import dbg conninfo program_name overwrite () =
   Db.conninfo := conninfo ;
   init_log ~with_time:false dbg true ;
-  let command = BatIO.(read_all stdin) |> Lang.command_of_string in
+  let command = IO.(read_all stdin) |> Lang.command_of_string in
   let program = Api.Program.{ name = program_name ; command ; created = 0. } in
   Db.Program.insert ~overwrite program ;
   Db.close ()
@@ -148,7 +149,7 @@ let programs dbg conninfo () =
     | None -> "n.a."
     | Some v -> conv v in
   Db.ListPrograms.get () |>
-  BatEnum.iter (fun p ->
+  Enum.iter (fun p ->
     Printf.printf "%s\t%s\t%s\t%s\t%s\n"
       p.Api.ListPrograms.name
       (or_null string_of_int p.last_run)
@@ -166,7 +167,7 @@ let runs dbg conninfo program limit () =
     | None -> "n.a."
     | Some v -> conv v in
   Db.ListPastRuns.get ~program ~limit () |>
-  BatEnum.iter (fun r ->
+  Enum.iter (fun r ->
     let open Api in
     let stats = RunStats.aggr r.ListPastRuns.stats_self r.stats_desc in
     Printf.printf "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
@@ -188,8 +189,8 @@ let logs dbg conninfo run follow () =
   let rec loop offset =
     let count, _ =
       Db.ListLogLines.get ~offset ?limit:None ~run |>
-      BatEnum.fold (fun (count, prev_fd) l ->
-        if prev_fd <> l.Api.LogLine.fd then BatIO.flush_all () ;
+      Enum.fold (fun (count, prev_fd) l ->
+        if prev_fd <> l.Api.LogLine.fd then IO.flush_all () ;
         Printf.(if l.fd = 1 then printf else eprintf) "%d\t%s\t%s\n"
           l.run
           (string_of_date l.time)
@@ -197,7 +198,7 @@ let logs dbg conninfo run follow () =
         count + 1, l.fd
       ) (0, 1) in
     if follow then (
-      BatIO.flush_all () ;
+      IO.flush_all () ;
       Unix.sleepf 0.2 ;
       loop (offset + count)
     ) in
