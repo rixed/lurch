@@ -734,7 +734,7 @@ let rec step loop =
 
 (* Executes directly the given run. The run is supposed to be an internal
  * command, such as chroot creation. It is monitored already by another
- * process. Both this ont and that one are forked off by `lurch step`. *)
+ * process. Both this one and that one are forked off by `lurch step`. *)
 let exec run_id =
   let run = Db.Run.get run_id in
   match run.Api.Run.command.operation with

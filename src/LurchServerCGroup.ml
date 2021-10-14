@@ -16,16 +16,6 @@ let write_into ~fname s =
 let cgroup_uniq_name () =
   Printf.sprintf "lurch/%d.%s" (Unix.getpid ()) (random_string ())
 
-(* Make a command run inside a new accounting cgroup, which name is returned
- * alongside the new command: *)
-let wrap cmd =
-  let cgroup = cgroup_uniq_name () in
-  let cmd =
-    Array.append
-      [| "systemd-run" ; "--slice="^ cgroup |]
-      cmd in
-  cgroup, cmd
-
 let controllers = [ "memory" ; "cpuacct" ]
 
 let all_controllers () =
