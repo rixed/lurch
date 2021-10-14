@@ -109,15 +109,13 @@ let do_monitor_run isolation_run cgroup pid stdout_r stderr_r timeout run_id =
         in
         List.iter (ignore % read_lines) fds ;
         (* Collect cgroup data: *)
-        let cpu_usr, cpu_sys = CGroup.cpuacct_read cgroup in
-        let mem_usr, mem_sys = CGroup.memory_read cgroup in
+        let stats = CGroup.get_stats cgroup in
         log.info "Consumed %a+%a CPU and %a+%a RAM"
-          (Option.print Float.print) cpu_usr
-          (Option.print Float.print) cpu_sys
-          (Option.print Int64.print) mem_usr
-          (Option.print Int64.print) mem_sys ;
-        Db.Run.stop run_id exit_code
-                    ?cpu_usr ?cpu_sys ?mem_usr ?mem_sys ;
+          (Option.print Float.print) stats.Api.RunStats.cpu_usr
+          (Option.print Float.print) stats.cpu_sys
+          (Option.print Float.print) stats.mem_usr
+          (Option.print Float.print) stats.mem_sys ;
+        Db.Run.stop run_id ~stats exit_code ;
         (* Also deletes the cgroup: *)
         CGroup.remove cgroup ;
         Printf.printf "All good, quitting.\n" ;
@@ -194,18 +192,25 @@ let default_env =
                with Not_found -> "/usr/bin:/bin") ;
      "USER="^ !user |]
 
-(* Called just before to execve: *)
-let isolate isolation_run pathname args env () =
+(* Returns both the cgroup and a function to be called just before to execve: *)
+let prep_isolate isolation_run pathname args env =
   match isolation_run with
   | None ->
-      pathname, args, Array.append default_env env
+      CGroup.make_adhoc (),
+      fun () -> pathname, args, Array.append default_env env
   | Some Api.Run.{
       command = { operation = Chroot { template ; _ } ; _ } ; id } ->
-      Chroot.prepare_exec template id pathname args env
+      Chroot.cgroup id,
+      (* Chroot.prepare_exec needs to enter the chroot only after the fork: *)
+      fun () -> Chroot.prepare_exec template id pathname args env
   | Some Api.Run.{
       command = { operation = Docker { image ; _ } ; _ } ; id } ->
-      Docker.prepare_exec image id pathname args env
-  | _ -> assert false
+      Docker.cgroup id,
+      (* Docker.prepare_exec needs the DB so let's call it before the fork: *)
+      let res = Docker.prepare_exec image id pathname args env in
+      fun () -> res
+  | _ ->
+      assert false
 
 let start_process pathname ~args ?(env=[||]) ?timeout run =
   (* Isolation: most of the time, commands must run within a container of
@@ -233,12 +238,13 @@ let start_process pathname ~args ?(env=[||]) ?timeout run =
       (* Pipes to read monitored process output: *)
       let stdout_r, stdout_w = pipe ~cloexec:false () in
       let stderr_r, stderr_w = pipe ~cloexec:false () in
-      let cgroup, pid =
-        CGroup.exec (isolate isolation_run pathname args env) stdin stdout_w stderr_w in
+      let cgroup, isolate = prep_isolate isolation_run pathname args env in
+      let pid = CGroup.exec cgroup isolate stdin stdout_w stderr_w in
       close stdout_w ;
       close stderr_w ;
       log.info "Started process has pid %d" pid ;
-      Db.Run.start run.id ~cgroup ~pid ;
+      let cgroup_name = CGroup.name cgroup in
+      Db.Run.start run.id ~cgroup:cgroup_name ~pid ;
       do_monitor_run isolation_run cgroup pid stdout_r stderr_r timeout run.id
     with e ->
       let line = "Cannot start subprocess: "^ Printexc.to_string e in
@@ -646,23 +652,6 @@ let step_isolation () =
               Db.LogLine.insert isolate.id 1 line ;
               Db.Run.stop isolate.id status)
       | [| isolation_run ; subrun |] ->
-          let stop_with_stats isolate status =
-            (* Use the stats of the docker container started by isolation_run
-             * as the stats of the subrun: *)
-            let cpu_usr, cpu_sys, mem_usr, mem_sys =
-              try
-                match isolation_run with
-                | Api.Run.{
-                    command = { operation = Docker _ } ;
-                    docker_id = Some docker_id ; _ } ->
-                    Docker.read_stats docker_id
-                | _ ->
-                    raise Exit
-              with _ ->
-                None, None, None, None in
-            Db.Run.stop isolate.Api.Run.id status
-                        ?cpu_usr ?cpu_sys ?mem_usr ?mem_sys
-          in
           (match subrun.Api.Run.exit_code with
           | None ->
               log.debug "Waiting longer for the isolated subcommand (run #%d) \
@@ -673,14 +662,14 @@ let step_isolation () =
                 Printf.sprintf "Isolated subcommand (run #%d) succeeded."
                   subrun.id in
               Db.LogLine.insert isolate.id 1 line ;
-              stop_with_stats isolate 0
+              Db.Run.stop isolate.id 0
           | Some status ->
               let line =
                 Printf.sprintf "Isolated subcommand (run #%d) failed \
                                 with status %d."
                   subrun.id status in
               Db.LogLine.insert isolate.id 2 line ;
-              stop_with_stats isolate status)
+              Db.Run.stop isolate.id status)
       | _ -> assert false))
 
 (* If a run has been cancelled then all it's children must also be cancelled. *)

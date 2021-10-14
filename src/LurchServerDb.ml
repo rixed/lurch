@@ -460,24 +460,22 @@ struct
         (Printexc.to_string e) |>
       failwith
 
-  let stop run_id ?cpu_usr ?cpu_sys ?mem_usr ?mem_sys
-           exit_code =
+  let stop run_id ?stats exit_code =
     let cnx = get_cnx () in
     let params =
-      [| string_of_int run_id ;
-         string_of_int exit_code ;
-         or_null string_of_float cpu_usr ;
-         or_null string_of_float cpu_sys ;
-         or_null Int64.to_string mem_usr ;
-         or_null Int64.to_string mem_sys |] in
-    log.debug "Stopping run %d with exit_code %d, \
-               CPU consumption: %a usr + %a sys, \
-               MEM consumption: %a ram+swp + %a kernel"
-      run_id exit_code
-      (Option.print Float.print) cpu_usr
-      (Option.print Float.print) cpu_sys
-      (Option.print Int64.print) mem_usr
-      (Option.print Int64.print) mem_sys ;
+      match stats with
+      | Some stats ->
+          [| string_of_int run_id ;
+             string_of_int exit_code ;
+             or_null string_of_float stats.Api.RunStats.cpu_usr ;
+             or_null string_of_float stats.cpu_sys ;
+             or_null Int64.(to_string % of_float) stats.mem_usr ;
+             or_null Int64.(to_string % of_float) stats.mem_sys |]
+      | None ->
+          [| string_of_int run_id ;
+             string_of_int exit_code ;
+             null ; null ; null ; null |] in
+    log.debug "Stopping run %d with exit_code %d" run_id exit_code ;
     try
       cnx#exec ~expect:[Command_ok] ~params
         "update run set stopped = now(), \
@@ -623,11 +621,11 @@ struct
     let params = [| string_of_int run_id |] in
     let res =
       cnx#exec ~expect:[Tuples_ok] ~params
-        "select instance from docker_instance where run = $1" in
+        "select instance, docker_id from docker_instance where run = $1" in
     if res#ntuples <> 1 then
       failwith ("Cannot find a unique docker_instance for run "^ params.(0)) ;
     log.debug "Got tuple %a" (Array.print String.print) (res#get_tuple 0) ;
-    res#getvalue 0 0
+    res#getvalue 0 0, res#getvalue 0 1
 
   let insert run_id instance docker_id =
     let cnx = get_cnx () in

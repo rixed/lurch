@@ -3,6 +3,7 @@ open Batteries
 open LurchServerLib
 
 module Api = LurchApiTypes
+module CGroup = LurchServerCGroup
 module Db = LurchServerDb
 module Files = LurchServerFiles
 
@@ -58,7 +59,9 @@ let env_of_template = function
   | s ->
       invalid_arg ("Chroot.environment "^ s)
 
+(* Returns no cgroup, and the execve arguments to run the command: *)
 let prepare_exec template isolation_id pathname args env =
+  (* Create the cgroup before entering the chroot! *)
   let path = Db.ChrootPath.get isolation_id in
   let open Legacy.Unix in
   (* Save this before chrooting: *)
@@ -74,3 +77,6 @@ let prepare_exec template isolation_id pathname args env =
   setuid pwd.pw_uid ;
   let env = Array.append (env_of_template template) env in
   pathname, args, env
+
+let cgroup _isolation_id =
+  CGroup.make_adhoc ()

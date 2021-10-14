@@ -29,8 +29,13 @@ let create isolation_id image =
          shell_quote image ^" 7200") in
   Db.DockerInstance.insert isolation_id instance docker_id
 
+(* Returns the cgroup used for this instance, and the execve arguments to run
+ * the command: *)
 let prepare_exec _image isolation_id pathname args env =
-  let instance = Db.DockerInstance.get isolation_id in
+  log.debug "Preparing docker exec" ;
+  let instance, _docker_id = Db.DockerInstance.get isolation_id in
+  (* [instance] is the friendly name of the container but for finding the
+   * effective cgroup we really need the id: *)
   let in_env =
     Array.init (Array.length env * 2) (fun i ->
       if i mod 2 = 0 then "-e" else env.(i/2)) in
@@ -38,12 +43,10 @@ let prepare_exec _image isolation_id pathname args env =
   let args = [| "exec" |] ++ in_env ++ [| instance ; pathname |] ++ args in
   !docker, args, [||]
 
-let read_stats docker_id =
-  let cgroup = "docker/" ^ docker_id in
-  log.info "Reading docker stats from cgroup %s" cgroup ;
-  let cpu_usr, cpu_sys = CGroup.cpuacct_read cgroup in
-  let mem_usr, mem_sys = CGroup.memory_read cgroup in
-  cpu_usr, cpu_sys, mem_usr, mem_sys
+let cgroup isolation_id =
+  let _instance, docker_id = Db.DockerInstance.get isolation_id in
+  (* Note: alternatively, some system seams to use "docker-$id": *)
+  CGroup.make_external ("docker/"^ docker_id)
 
 (* TODO: destroy the container (ie. just `docker stop $instance`)
  * Or maybe just after a while. Same goes for chroot, delete after a while. *)
