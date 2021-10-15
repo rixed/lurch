@@ -45,8 +45,38 @@ let prepare_exec _image isolation_id pathname args env =
 
 let cgroup isolation_id =
   let _instance, docker_id = Db.DockerInstance.get isolation_id in
-  (* Note: alternatively, some system seams to use "docker-$id": *)
-  CGroup.make_external ("docker/"^ docker_id)
+  (* We don't really know where this cgroup is in that case. Let's look for
+   * it, since it's supposed to exist already: *)
+  let possible_cgroups =
+    [ "docker/"^ docker_id ;  (* cgroupfs driver *)
+      "system.slice/docker-"^ docker_id ^".scope" (* systemd driver *) ] in
+  let possible_mount_point =
+    [ !CGroup.mount_point ;
+      "/sys/fs/cgroup" ] in
+  try
+    List.find_map (fun mount_point ->
+      try
+        Some (
+          List.find_map (fun cgroup ->
+            (* Look for cgroup v1: *)
+            let fname = mount_point ^"/memory/"^ cgroup ^"/tasks" in
+            if Sys.file_exists fname then
+              Some (CGroup.make_external mount_point 1 cgroup)
+            else
+              (* Look for cgroup v2: *)
+              let fname = mount_point ^"/"^ cgroup ^"/cgroup.procs" in
+              if Sys.file_exists fname then
+                Some (CGroup.make_external mount_point 2 cgroup)
+              else
+                None
+          ) possible_cgroups)
+      with Not_found ->
+        None
+    ) possible_mount_point
+  with Not_found ->
+    log.warning "Cannot find docker cgroup location for docker Id %S"
+      docker_id ;
+    CGroup.make_dummy ()
 
 (* TODO: destroy the container (ie. just `docker stop $instance`)
  * Or maybe just after a while. Same goes for chroot, delete after a while. *)
