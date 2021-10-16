@@ -428,7 +428,8 @@ struct
       (* This depends on the command. They are *not* updated when the
        * server insert a new confirmation etc, but that's OK because they
        * are used on the client only: *)
-      confirmation_msg : string option ;
+      approval_msg : string option ;
+      approved_by : string option ;
       chroot_path : string option ;
       docker_instance : string option ;
       docker_id : string option ;

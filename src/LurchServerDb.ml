@@ -385,7 +385,8 @@ struct
            r.cpu_usr, r.cpu_sys, r.mem_usr, r.mem_sys, \
            array(select id from run where parent_run = r.id order by id) \
              as children, \
-           w.message, c.path, d.instance, d.docker_id, v.value, \
+           w.message, w.approved_by, \
+           c.path, d.instance, d.docker_id, v.value, \
            array(select array[var_name, value] from var_bindings \
                  where var_name is not null) \
              as environment \
@@ -420,12 +421,13 @@ struct
       stats_desc = DescStats.get id ;
       children = array identity (getv identity 14) |>
                  Array.map (get % int_of_string) ;
-      confirmation_msg = getn identity 15 ;
-      chroot_path = getn identity 16 ;
-      docker_instance = getn identity 17 ;
-      docker_id = getn identity 18 ;
-      var_value = getn identity 19 ;
-      env = get_env (getv identity 20) ;
+      approval_msg = getn identity 15 ;
+      approved_by = getn identity 16 ;
+      chroot_path = getn identity 17 ;
+      docker_instance = getn identity 18 ;
+      docker_id = getn identity 19 ;
+      var_value = getn identity 20 ;
+      env = get_env (getv identity 21) ;
       (* Populated independently as we do want to load logs on demand only: *)
       logs = [||] }
 
@@ -901,12 +903,12 @@ end
 
 module Approval =
 struct
-  let insert run_id msg =
+  let insert run_id msg user =
     let cnx = get_cnx () in
-    let params = [| string_of_int run_id ; msg |] in
+    let params = [| string_of_int run_id ; msg ; user |] in
     try
       cnx#exec ~expect:[Command_ok] ~params
-        "insert into approved (run, message) values ($1, $2)" |>
+        "insert into approved (run, message, approved_by) values ($1, $2, $3)" |>
       ignore
     with e ->
       Printf.sprintf "Cannot confirm run %d: %s\n" run_id

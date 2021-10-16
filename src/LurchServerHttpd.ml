@@ -101,7 +101,10 @@ let serve () =
   let debug_to_file = Some (!log_dir ^"/httpd.log") in
   let params = Cgi.parse_args () in
   let get_param n = get_param params n
-  and get_opt_param n = get_opt_param params n in
+  and get_opt_param n = get_opt_param params n
+  and remote_user =
+    try Some (Sys.getenv "REMOTE_USER")
+    with Not_found -> None in
   log.debug "PATH_INFO = %a" (List.print String.print) Cgi.path_info ;
   log.debug "URL = %s" (Cgi.this_url ()) ;
   (try
@@ -138,15 +141,19 @@ let serve () =
         cancel_run run_id
     | "start_program" ->
         let name = get_param "program" identity in
-        let creator_user =
-          try Sys.getenv "REMOTE_USER"
-          with Not_found ->
-            failwith "Unidentified users are not allowed to start programs" in
-        start_program name creator_user
+        (match remote_user with
+        | Some user ->
+            start_program name user
+        | None ->
+            failwith "Unidentified users are not allowed to start programs")
     | "approve" ->
         let run_id = get_param "run" int_of_string
         and msg = get_param "message" identity in
-        approve run_id msg
+        (match remote_user with
+        | Some user ->
+            approve run_id msg user
+        | None ->
+            failwith "Unidentified users are not allowed to give approval")
     | "set_variable" ->
         let run_id = get_param "run" int_of_string
         and value = get_param "value" identity in

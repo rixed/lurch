@@ -517,8 +517,8 @@ let rec view run =
     | Approve { comment } ->
         let comment = Api.Run.var_expand run.env comment in
         div [
-          (match run.confirmation_msg with
-          | None ->
+          (match run.approval_msg, run.approved_by with
+          | None, None ->
               (* Still not confirmed: *)
               let msg_dom_id = "run_confirm_msg_" ^ string_of_int run.id in
               div (
@@ -533,13 +533,13 @@ let rec view run =
                         (`ConfirmCommand (run.id, msg_dom_id, run.top_run)) ]
                 | _ ->
                     []))
-          | Some msg ->
-              p (
-                text "Confirmed " ::
-                if msg <> "" then
-                  [ text " with message: " ; text msg ]
-                else
-                  [ text " with no message" ])) ]
+          | Some msg, Some user ->
+              p [ text ("Confirmed by "^ user ^
+                        (if msg <> "" then " with message: "^ msg
+                         else " with no message")) ]
+          | _ ->
+              (* Both are null together when approval is missing, or not null *)
+              assert false) ]
     | Let { subcommand ; comment ; var_name ; default } ->
         div [
           (match run.var_value with

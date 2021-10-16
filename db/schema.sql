@@ -223,6 +223,7 @@ create table approved (
   run int not null, -- must be a command_approve
   time timestamp not null default now(),
   message text not null default '',
+  approved_by text not null,
 
   foreign key (run) references run (id) on delete cascade,
   unique (run)
