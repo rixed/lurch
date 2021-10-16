@@ -15,11 +15,11 @@ if ! test -d "$backup_dir"; then
   exit 1
 fi
 
-echo -n "Backing up... "
-
 dest="$backup_dir/$(date +%Y-%m-%d_%H:%M).sql.gz"
 
-docker exec -i $instance_name pg_dump -U postgres -d "$db_name" | gzip > "$dest".tmp &&
+echo -n "Backing up into $dest... "
+
+docker exec -i $instance_name pg_dump --clean -U postgres -d "$db_name" | gzip > "$dest".tmp &&
 mv "$dest".tmp "$dest"
 
 echo Done

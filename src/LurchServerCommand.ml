@@ -689,7 +689,7 @@ let expire_old_runs () =
   if not (Enum.is_empty olds) then (
     log.warning "Expiring old unstarted runs." ;
     Enum.iter (fun run_id ->
-      Db.LogLine.insert run_id 2 "Tool many old runs, expiring" ;
+      Db.LogLine.insert run_id 2 "Too many old runs, expiring" ;
       Db.Run.expire run_id
     ) olds
   )
