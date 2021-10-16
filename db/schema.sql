@@ -468,7 +468,6 @@ create view list_pending_lets as
     c.subcommand as subcommand -- the subcommand to start with the binding
   from run r
   join command_let c on c.command = r.command
-  join let_value v on v.run = r.id
   left outer join run r2 on r2.parent_run = r.id
   where r.stopped is null and (r2.id is null or r2.exit_code is not null);
 
