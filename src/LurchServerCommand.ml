@@ -585,24 +585,25 @@ let step_approvals () =
 
 let step_lets () =
   Db.ListPendingLets.get () |>
-  Enum.iter (fun Api.ListPendingLets.{ run ; subrun ; subcommand } ->
+  Enum.iter (fun Api.ListPendingLets.{ run ; value ; subrun ; subcommand } ->
     log_exceptions (fun () ->
-      match subrun with
-      | None ->
-          Db.Run.start run.id ;
-          (* No builder yet: start one *)
+      match value, subrun with
+      | None, None ->
+          Db.Run.start run.id
+      | Some v, None ->
           let subrun = Db.Run.insert ~top_run:run.top_run
                                      ~parent_run:run.id
                                      subcommand in
           let line =
-            "Starting let-binding subcommand as #"^ string_of_int subrun in
+            Printf.sprintf "Value set to %S, starting subcommand as #%d"
+              v subrun in
           Db.LogLine.insert run.id 1 line
-      | Some Api.Run.{ exit_code = Some exit_code } ->
+      | Some _, Some Api.Run.{ exit_code = Some exit_code } ->
           let line =
             "Stopping let-binding with exit code "^ string_of_int exit_code in
           Db.LogLine.insert run.id 1 line ;
           Db.Run.stop run.id exit_code
-      | Some _ ->
+      | _ ->
           (* Because of list_pending_lets definition: *)
           assert false))
 

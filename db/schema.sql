@@ -466,12 +466,16 @@ create view list_pending_approvals as
 create view list_pending_lets as
   select
     r.id as run, -- run itself will be fetched separately for simplicity
+    v.value as value,
     r2.id as subrun, -- optional subrun
     c.subcommand as subcommand -- the subcommand to start with the binding
   from run r
   join command_let c on c.command = r.command
+  left outer join let_value v on v.run = r.id
   left outer join run r2 on r2.parent_run = r.id
-  where r.stopped is null and (r2.id is null or r2.exit_code is not null);
+  where
+    r.stopped is null and
+    (r2.id is null or r2.exit_code is not null);
 
 -- List all containers/chroot that have to be build
 create view list_pending_isolations as

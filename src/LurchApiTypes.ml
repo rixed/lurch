@@ -593,6 +593,7 @@ module ListPendingLets =
 struct
   type t =
     { run : Run.t ;
+      value : string option ;
       subrun : Run.t option ;
       subcommand : int }
 end

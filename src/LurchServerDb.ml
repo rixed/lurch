@@ -939,7 +939,7 @@ struct
     let cnx = get_cnx () in
     let res =
       cnx#exec ~expect:[Tuples_ok]
-        "select run, subrun, subcommand from list_pending_lets" in
+        "select run, value, subrun, subcommand from list_pending_lets" in
     log.debug "%d lets are waiting." res#ntuples ;
     Enum.init res#ntuples (fun i ->
       log.debug "Got tuple %a" (Array.print String.print) (res #get_tuple i) ;
@@ -947,8 +947,9 @@ struct
       let getn conv j = if res#getisnull i j then None else Some (getv conv j) in
       Api.ListPendingLets.{
         run = Run.get (getv int_of_string 0) ;
-        subrun = Option.map Run.get (getn int_of_string 1) ;
-        subcommand = getv int_of_string 2 })
+        value = getn identity 1 ;
+        subrun = Option.map Run.get (getn int_of_string 2) ;
+        subcommand = getv int_of_string 3 })
 end
 
 module ListPendingApprovals =
