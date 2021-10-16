@@ -157,7 +157,11 @@ let serve () =
     | "set_variable" ->
         let run_id = get_param "run" int_of_string
         and value = get_param "value" identity in
-        set_variable run_id value
+        (match remote_user with
+        | Some user ->
+            set_variable run_id value user
+        | None ->
+            failwith "Unidentified users are not allowed to set variables")
     | p ->
         raise No_such_resource) ;
     Cgi.header ~status:200 () ;

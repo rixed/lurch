@@ -433,7 +433,8 @@ struct
       chroot_path : string option ;
       docker_instance : string option ;
       docker_id : string option ;
-      var_value : string option }
+      var_value : string option ;
+      var_set_by : string option }
     [@@deriving json]
 
   let to_json_string = to_json_string to_json

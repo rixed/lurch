@@ -542,8 +542,8 @@ let rec view run =
               assert false) ]
     | Let { subcommand ; comment ; var_name ; default } ->
         div [
-          (match run.var_value with
-          | None ->
+          (match run.var_value, run.var_set_by with
+          | None, None ->
               (* Still unset: *)
               let msg_dom_id = "run_var_value_" ^ string_of_int run.id in
               div (
@@ -555,8 +555,11 @@ let rec view run =
                         (`SetVariable (run.id, msg_dom_id, run.top_run)) ]
                 | _ ->
                     []))
-          | Some value ->
-              p [ text (var_name ^" is set to "^ value) ]) ;
+          | Some value, Some user ->
+              p [ text (var_name ^" was set to "^ value ^" by "^ user) ]
+          | _ ->
+              (* Both are either unset when the var is not set yet, or not null: *)
+              assert false) ;
           h3 [ text "In:" ] ;
           view_subcommand subcommand ]
     | Sequence { subcommands } ->

@@ -252,6 +252,7 @@ create table docker_instance (
 create table let_value (
   run int not null, -- must be that of a command_let
   value text not null,
+  set_by text not null,
 
   foreign key (run) references run (id) on delete cascade,
   unique (run)

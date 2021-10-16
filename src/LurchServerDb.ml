@@ -386,7 +386,8 @@ struct
            array(select id from run where parent_run = r.id order by id) \
              as children, \
            w.message, w.approved_by, \
-           c.path, d.instance, d.docker_id, v.value, \
+           c.path, d.instance, d.docker_id, \
+           v.value, v.set_by, \
            array(select array[var_name, value] from var_bindings \
                  where var_name is not null) \
              as environment \
@@ -427,7 +428,8 @@ struct
       docker_instance = getn identity 18 ;
       docker_id = getn identity 19 ;
       var_value = getn identity 20 ;
-      env = get_env (getv identity 21) ;
+      var_set_by = getn identity 21 ;
+      env = get_env (getv identity 22) ;
       (* Populated independently as we do want to load logs on demand only: *)
       logs = [||] }
 
@@ -918,12 +920,12 @@ end
 
 module LetValue =
 struct
-  let insert run_id value =
+  let insert run_id value user =
     let cnx = get_cnx () in
-    let params = [| string_of_int run_id ; value |] in
+    let params = [| string_of_int run_id ; value ; user |] in
     try
       cnx#exec ~expect:[Command_ok] ~params
-        "insert into let_value (run, value) values ($1, $2)" |>
+        "insert into let_value (run, value, set_by) values ($1, $2, $3)" |>
       ignore
     with e ->
       Printf.sprintf "Cannot set variable value for run %d to %S: %s\n"
