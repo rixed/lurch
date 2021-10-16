@@ -172,10 +172,11 @@ struct
                 { image = getv 1 }
           | 3 ->
               Api.Command.Exec
-                { pathname = getv 1 ;
-                  args = array identity (getv 2) ;
-                  env = array identity (getv 3) ;
-                  timeout = getn float_of_string 4 }
+                { working_dir = getv 1 ;
+                  pathname = getv 2 ;
+                  args = array identity (getv 3) ;
+                  env = array identity (getv 4) ;
+                  timeout = getn float_of_string 5 }
           | 4 ->
               Api.Command.Approve {
                 timeout = getn float_of_string 1 ;
@@ -247,9 +248,10 @@ struct
       | Docker { image } ->
           "command_docker",
           [| "image", image |]
-      | Exec { pathname ; args ; env ; timeout } ->
+      | Exec { working_dir ; pathname ; args ; env ; timeout } ->
           "command_exec",
-          [| "pathname", pathname ;
+          [| "working_dir", working_dir ;
+             "pathname", pathname ;
              "args", sql_of_string_array sql_array_quote args ;
              "env", sql_of_string_array sql_array_quote env ;
              "timeout", or_null string_of_float timeout |]

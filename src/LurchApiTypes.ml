@@ -74,7 +74,8 @@ struct
     | Docker of
         { image : string }
     | Exec of
-        { pathname : string ;
+        { working_dir : string ;
+          pathname : string ;
           (* [pathname] will be prepended automatically. This is unavoidable
            * since when isolating with docker we actually do not perform the
            * execve directly. *)
@@ -182,8 +183,9 @@ struct
         "Chroot(template:"^ template ^")"
     | Docker { image } ->
         "Docker(image:"^ image ^")"
-    | Exec { pathname ; args ; env ; timeout } ->
-        "Exec(pathname:"^ pathname ^", args:…, env:…, timeout:"^
+    | Exec { working_dir ; pathname ; args ; env ; timeout } ->
+        "Exec(working dir:"^ working_dir ^", pathname:"^ pathname ^
+        ", args:…, env:…, timeout:"^
         or_null string_of_float timeout ^")"
     | Approve { timeout ; comment ; autosuccess } ->
         "Approve(timeout:"^

@@ -31,7 +31,7 @@ let create isolation_id image =
 
 (* Returns the cgroup used for this instance, and the execve arguments to run
  * the command: *)
-let prepare_exec _image isolation_id pathname args env =
+let prepare_exec _image isolation_id working_dir pathname args env =
   log.debug "Preparing docker exec" ;
   let instance, _docker_id = Db.DockerInstance.get isolation_id in
   (* [instance] is the friendly name of the container but for finding the
@@ -39,9 +39,12 @@ let prepare_exec _image isolation_id pathname args env =
   let in_env =
     Array.init (Array.length env * 2) (fun i ->
       if i mod 2 = 0 then "-e" else env.(i/2)) in
+  let working_dir =
+    if working_dir = "" then [||] else [| "-w" ; working_dir |] in
   let (++) = Array.append in
-  let args = [| "exec" |] ++ in_env ++ [| instance ; pathname |] ++ args in
-  !docker, args, [||]
+  let args = [| "exec" |] ++ in_env ++ working_dir ++
+             [| instance ; pathname |] ++ args in
+  "", !docker, args, [||]
 
 let cgroup isolation_id =
   let _instance, docker_id = Db.DockerInstance.get isolation_id in

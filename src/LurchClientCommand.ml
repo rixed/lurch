@@ -102,13 +102,15 @@ let rec edit_as_form ?a ~depth ~op_mode ?(editable=true) ?dom_id command =
           p [ text "Docker-based isolation will run in any specified image." ] ;
           input_text ?id:(id "image") ~label:"Image:" ~editable
             ~placeholder:"image…" image ]
-    | Exec { pathname ; args ; env ; timeout } ->
+    | Exec { working_dir ; pathname ; args ; env ; timeout } ->
         div [
           p [ text "Executes any program with the given arguments and environment. \
                     A minimal argument vector and environment are provided by \
                     default. The program will be forcibly terminated, and that \
                     command considered a failure, if it's not finished after \
                     the given timeout expires." ] ;
+          p [ input_text ?id:(id "working_dir") ~label:"Working directory:"
+                ~editable working_dir ] ;
           p [ input_text ?id:(id "pathname") ~label:"Executable:" ~editable
                 pathname ] ;
           (if editable || args <> [||] then
@@ -361,11 +363,12 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
         let image = value ~def:"" "image" in
         Api.Command.Docker { image }
     | "exec" ->
-        let pathname = value ~def:"" "pathname"
+        let working_dir = value ~def:"" "working_dir"
+        and pathname = value ~def:"" "pathname"
         and args = value_strings "args"
         and env = value_strings "env"
         and timeout = option_map float_of_string (value_opt "timeout") in
-        Api.Command.Exec { pathname ; args ; env ; timeout }
+        Api.Command.Exec { working_dir ; pathname ; args ; env ; timeout }
     | "approve" ->
         let timeout = option_map float_of_string (value_opt "timeout")
         and comment = value ~def:"" "comment"
@@ -490,7 +493,7 @@ let rec view run =
                 [ text "Instance not started yet." ]
             | Some instance ->
                 [ text "Instance is " ; config_txt instance ; text "." ]) ]
-    | Exec { pathname ; args ; env ; timeout } ->
+    | Exec { working_dir ; pathname ; args ; env ; timeout } ->
         let txt_of_strings a =
           List.map (fun s ->
             config_txt (s ^" ")
@@ -502,6 +505,8 @@ let rec view run =
             [ text "Execute program: " ; config_txt pathname ;
               text (if args = [] then " with no arguments"
                                  else " with arguments: ") ] @ args @
+              (if working_dir = "" then []
+               else [ text (" in working directory "^ working_dir) ]) @
               (if env = [] then [] else (text " in environment: " :: env))
           ) ;
           match timeout with

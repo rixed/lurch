@@ -131,11 +131,11 @@ let command_of_string str =
         Chroot { template }
     | Lst [ Sym "docker" ; Str image ] ->
         Docker { image }
-    | Lst [ Sym "exec" ; Str pathname ; Lst args ; Lst env ; timeout ] ->
+    | Lst [ Sym "exec" ; Str working_dir ; Str pathname ; Lst args ; Lst env ; timeout ] ->
         let args = List.map string_of_str args |> Array.of_list
         and env = List.map string_of_str env |> Array.of_list
         and timeout = or_null float_of_sym timeout in
-        Exec { pathname ; args ; env ; timeout }
+        Exec { working_dir ; pathname ; args ; env ; timeout }
     | Lst [ Sym "approve" ; Sym timeout ; Str comment ; Sym autosuccess ] ->
         let timeout =
           if timeout = "null" then None else Some (float_of_string timeout) in
@@ -182,7 +182,7 @@ let string_of_command ?max_depth cmd =
     | Some v -> conv v in
   let sym_of_float f = Sym (string_of_float f) in
   let sym_of_int i = Sym (string_of_int i) in
-  let to_str s = Str s in
+  let str_of_string s = Str s in
   let rec sexpr_of_operation ?max_depth = function
     | Nop { exit_code } ->
         Lst [ Sym "no-op" ; Sym (string_of_int exit_code) ]
@@ -194,10 +194,10 @@ let string_of_command ?max_depth cmd =
         Lst [ Sym "chroot" ; Str template ]
     | Docker { image } ->
         Lst [ Sym "docker" ; Str image ]
-    | Exec { pathname ; args ; env ; timeout } ->
-        Lst [ Sym "exec" ; Str pathname ;
-              Lst (List.map to_str (Array.to_list args)) ;
-              Lst (List.map to_str (Array.to_list env)) ;
+    | Exec { working_dir ; pathname ; args ; env ; timeout } ->
+        Lst [ Sym "exec" ; Str working_dir ; Str pathname ;
+              Lst (List.map str_of_string (Array.to_list args)) ;
+              Lst (List.map str_of_string (Array.to_list env)) ;
               or_null sym_of_float timeout ]
     | Approve { timeout ; comment ; autosuccess } ->
         Lst [ Sym "approve" ;
@@ -236,7 +236,7 @@ let string_of_command ?max_depth cmd =
     | Spawn { program } ->
         Lst [ Sym "spawn" ; Str program ]
     | ForLoop { var_name ; values ; subcommand } ->
-        let values = List.map to_str (Array.to_list values) in
+        let values = List.map str_of_string (Array.to_list values) in
         Lst [ Sym "for" ; Sym var_name ; Lst values ;
               sexpr_of_command ?max_depth subcommand ]
     | Break { depth } ->
@@ -260,16 +260,16 @@ let string_of_command ?max_depth cmd =
 *)
 
 (*$= string_of_sexpr & ~printer:identity
-  "(sequence (pause 10) (exec \"make\" () () null))" \
+  "(sequence (pause 10) (exec \"\" \"make\" () () null))" \
     (linearize \
       (string_of_sexpr (Lst [ Sym "sequence" ; \
         Lst [ Sym "pause" ; Sym "10" ] ; \
-        Lst [ Sym "exec" ; Str "make" ; Lst [] ; Lst [] ; Sym "null" ] ])))
+        Lst [ Sym "exec" ; Str "" ; Str "make" ; Lst [] ; Lst [] ; Sym "null" ] ])))
 *)
 
 (*$= string_of_command & ~printer:identity
-  "(sequence (pause 4.) (exec \"make\" (\"make\") () 0.))" \
+  "(sequence (pause 4.) (exec \"\" \"make\" (\"make\") () 0.))" \
     (linearize \
       (string_of_command (command_of_string \
-        "(sequence (pause 4) (exec \"make\" (\"make\") () 0))")))
+        "(sequence (pause 4) (exec \"\" \"make\" (\"make\") () 0))")))
 *)

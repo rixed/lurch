@@ -193,26 +193,26 @@ let default_env =
      "USER="^ !user |]
 
 (* Returns both the cgroup and a function to be called just before to execve: *)
-let prep_isolate isolation_run pathname args env =
+let prep_isolate isolation_run working_dir pathname args env =
   match isolation_run with
   | None ->
       CGroup.make_adhoc (),
-      fun () -> pathname, args, Array.append default_env env
+      fun () -> working_dir, pathname, args, Array.append default_env env
   | Some Api.Run.{
       command = { operation = Chroot { template ; _ } ; _ } ; id } ->
       Chroot.cgroup id,
       (* Chroot.prepare_exec needs to enter the chroot only after the fork: *)
-      fun () -> Chroot.prepare_exec template id pathname args env
+      fun () -> Chroot.prepare_exec template id working_dir pathname args env
   | Some Api.Run.{
       command = { operation = Docker { image ; _ } ; _ } ; id } ->
       Docker.cgroup id,
       (* Docker.prepare_exec needs the DB so let's call it before the fork: *)
-      let res = Docker.prepare_exec image id pathname args env in
+      let res = Docker.prepare_exec image id working_dir pathname args env in
       fun () -> res
   | _ ->
       assert false
 
-let start_process pathname ~args ?(env=[||]) ?timeout run =
+let start_process working_dir pathname ~args ?(env=[||]) ?timeout run =
   (* Isolation: most of the time, commands must run within a container of
    * some sort (chroot, docker instance...)
    * First, lookup the chain of parents to find the isolation mechanism
@@ -238,7 +238,8 @@ let start_process pathname ~args ?(env=[||]) ?timeout run =
       (* Pipes to read monitored process output: *)
       let stdout_r, stdout_w = pipe ~cloexec:false () in
       let stderr_r, stderr_w = pipe ~cloexec:false () in
-      let cgroup, isolate = prep_isolate isolation_run pathname args env in
+      let cgroup, isolate =
+        prep_isolate isolation_run working_dir pathname args env in
       let pid = CGroup.exec cgroup isolate stdin stdout_w stderr_w in
       close stdout_w ;
       close stderr_w ;
@@ -297,11 +298,11 @@ let start_terminal run =
       Db.LogLine.insert run.id 1 line ;
       Db.Run.start run.id ;
       Db.Run.stop run.id exit_code ;
-  | Exec { pathname ; args ; env ; timeout } ->
+  | Exec { working_dir ; pathname ; args ; env ; timeout } ->
       let pathname = Api.Run.var_expand run.env pathname
       and args = Array.map (Api.Run.var_expand run.env) args
       and env = Array.map (Api.Run.var_expand run.env) env in
-      start_process pathname ~args ~env ?timeout run
+      start_process working_dir pathname ~args ~env ?timeout run
   | Chroot _ | Docker _ ->
       (* Run the creation of the isolation layer as any other
        * command, so it can itself be isolated.
@@ -322,7 +323,7 @@ let start_terminal run =
            "LURCH_DB="^ !Db.conninfo ;
            "CGROUP_VERSION="^ string_of_int !CGroup.version ;
            "CGROUP_MOUNT_POINT="^ !CGroup.mount_point |] in
-      start_process "/bin/sh" ~args ~env ~timeout:!command_timeout run
+      start_process "" "/bin/sh" ~args ~env ~timeout:!command_timeout run
   | Spawn { program } ->
       let program = Api.Run.var_expand run.env program in
       Db.Run.start run.id ;

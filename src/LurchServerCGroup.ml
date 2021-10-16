@@ -214,13 +214,15 @@ let exec cgroup isolate its_stdin its_stdout its_stderr =
       done ;
       join cgroup ;
       log.debug "Entered cgroup" ;
-      let pathname, args, env = isolate () in
-      log.debug "Going to execve %s %a with env %a into cgroup %s"
+      let working_dir, pathname, args, env = isolate () in
+      log.debug "Going to execve %s %a in %S with env %a into cgroup %s"
         pathname
         (Array.print String.print) args
+        working_dir
         (Array.print String.print) env
         (name cgroup) ;
       flush_all () ;
+      if working_dir <> "" then Unix.chdir working_dir ;
       let argv = Array.append [| pathname |] args in
       execve pathname argv env
     with e ->

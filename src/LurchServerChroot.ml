@@ -60,7 +60,7 @@ let env_of_template = function
       invalid_arg ("Chroot.environment "^ s)
 
 (* Returns no cgroup, and the execve arguments to run the command: *)
-let prepare_exec template isolation_id pathname args env =
+let prepare_exec template isolation_id working_dir pathname args env =
   (* Create the cgroup before entering the chroot! *)
   let path = Db.ChrootPath.get isolation_id in
   let open Legacy.Unix in
@@ -76,7 +76,7 @@ let prepare_exec template isolation_id pathname args env =
   setgid pwd.pw_gid ;
   setuid pwd.pw_uid ;
   let env = Array.append (env_of_template template) env in
-  pathname, args, env
+  working_dir, pathname, args, env
 
 let cgroup _isolation_id =
   CGroup.make_adhoc ()

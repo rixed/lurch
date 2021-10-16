@@ -50,6 +50,7 @@ create table command_docker (
 
 create table command_exec (
   command int,
+  working_dir text not null default '',  -- empty for "no change"
   pathname text not null,
   -- !!!WARNING WARNING WARNING!!! postgres arrays start at 1 !!!
   args text array not null default '{}', -- Editor should provide sane default
