@@ -6,7 +6,7 @@ module Api = LurchApiTypes
 
 (* String representation of commands are mere s-expressions.
  * strings are represented as OCaml quoted strings. *)
-type context = Blank | Enter | Leave | Symbol | String
+type context = Blank | Enter | Leave | Symbol | String | Comment
 
 let char_is_whitespace = function
   | ' ' | '\n' | '\r' | '\t' | '\b' -> true
@@ -17,8 +17,14 @@ let option_map f = function
   | Some v -> Some (f v)
 
 let rec tok str res i =
-  let ctx = match res with (ctx, _)::_ -> ctx | [] -> Blank in
-  if i >= String.length str then List.rev res
+  let ctx = match res with (ctx, _) :: _ -> ctx | [] -> Blank in
+  if i >= String.length str then
+    List.rev res
+  else if ctx = Comment then
+    if str.[i] = '\n' then
+      tok str ((Blank, i) :: res) (i + 1)
+    else
+      tok str res (i + 1)
   else if char_is_whitespace str.[i] then
     let res =
       if ctx = Blank || ctx = String then res
@@ -42,6 +48,11 @@ let rec tok str res i =
     tok str res (i + 1)
   else if str.[i] = '\\' && ctx = String && i < String.length str - 1 then
     tok str res (i + 2)
+  else if str.[i] = ';' then
+    let res =
+      if ctx = String then res
+      else (Comment, i) :: res in
+    tok str res (i + 1)
   else
     let res =
       if ctx = Symbol || ctx = String then res
@@ -91,9 +102,12 @@ let sexpr_of_string str =
         let sto = String.length str in
         List.rev (adder sto lst),
         []
-    | (Symbol, i) :: rest -> loop (adder i lst) (add_sym i) rest
-    | (String, i) :: rest -> loop (adder i lst) (add_str i) rest
-    | (Blank, i) :: rest -> loop (adder i lst) (add_blk i) rest
+    | (Symbol, i) :: rest ->
+        loop (adder i lst) (add_sym i) rest
+    | (String, i) :: rest ->
+        loop (adder i lst) (add_str i) rest
+    | ((Blank | Comment), i) :: rest ->
+        loop (adder i lst) (add_blk i) rest
     | (Enter, i) :: rest ->
         let lst = adder i lst in
         let sublst, rest = loop [] (add_blk i) rest in
@@ -272,4 +286,8 @@ let string_of_command ?max_depth cmd =
     (linearize \
       (string_of_command (command_of_string \
         "(sequence (pause 4) (exec \"\" \"make\" (\"make\") () 0))")))
+  "(sequence (pause 4.) (pause 2.))" \
+    (linearize \
+      (string_of_command (command_of_string \
+        "(sequence (pause 4) ; comment\n(pause 2))")))
 *)
