@@ -10,6 +10,7 @@ module Db = LurchServerDb
 module Docker = LurchServerDocker
 module Files = LurchServerFiles
 module Lang = LurchCommandLanguage
+module Secrets = LurchServerSecrets
 
 let lurch = ref (Sys.argv.(0))
 
@@ -202,7 +203,8 @@ let prep_isolate isolation_run working_dir pathname args env =
       command = { operation = Chroot { template ; _ } ; _ } ; id } ->
       Chroot.cgroup id,
       (* Chroot.prepare_exec needs to enter the chroot only after the fork: *)
-      fun () -> Chroot.prepare_exec template id working_dir pathname args env
+      fun () ->
+        Chroot.prepare_exec template id working_dir pathname args env
   | Some Api.Run.{
       command = { operation = Docker { image ; _ } ; _ } ; id } ->
       Docker.cgroup id,
@@ -322,7 +324,9 @@ let start_terminal run =
            "LURCH_LOG_DIR="^ !log_dir ;
            "LURCH_DB="^ !Db.conninfo ;
            "CGROUP_VERSION="^ string_of_int !CGroup.version ;
-           "CGROUP_MOUNT_POINT="^ !CGroup.mount_point |] in
+           "CGROUP_MOUNT_POINT="^ !CGroup.mount_point ;
+           "LURCH_SECRETS_DIR="^ !Secrets.basedir ;
+           "LURCH_SECRETS_MOUNT_POINT="^ !Secrets.mount_point |] in
       start_process "" "/bin/sh" ~args ~env ~timeout:!command_timeout run
   | Spawn { program } ->
       let program = Api.Run.var_expand run.env program in
@@ -607,6 +611,19 @@ let step_lets () =
           (* Because of list_pending_lets definition: *)
           assert false))
 
+let secrets_dir_of_run run =
+  let path = !Secrets.basedir ^"/"^ run.Api.Run.program in
+  if file_exists ~is_dir:true path then Some path else None
+
+let stop_isolation isolation_run =
+  match isolation_run.Api.Run.command.operation with
+  | Chroot { template } ->
+      let secrets_dir = secrets_dir_of_run isolation_run in
+      Chroot.delete isolation_run.id ?secrets_dir template
+  | _ ->
+      (* Nothing to be done *)
+      ()
+
 (* The isolation commands can take a while so we run them asynchronously
  * and wait for their specific entry in their additional tables to proceed
  * to the subcommand: *)
@@ -621,13 +638,13 @@ let step_isolation () =
         | _ -> assert false in
       match isolate.Api.Run.children with
       | [| |] ->
+          Db.Run.start isolate.id ;
           (* No builder yet: start one *)
           let builder_run = Db.Run.insert ~top_run:isolate.top_run
                                           ~parent_run:isolate.id
                                           builder_cmd.Api.Command.id |>
                             Db.Run.get in
-          start_terminal builder_run ;
-          Db.Run.start isolate.id
+          start_terminal builder_run
       | [| builder |] ->
           (match builder.Api.Run.exit_code with
           | None ->
@@ -664,6 +681,7 @@ let step_isolation () =
                 Printf.sprintf "Isolated subcommand (run #%d) succeeded."
                   subrun.id in
               Db.LogLine.insert isolate.id 1 line ;
+              stop_isolation isolation_run ;
               Db.Run.stop isolate.id 0
           | Some status ->
               let line =
@@ -671,6 +689,7 @@ let step_isolation () =
                                 with status %d."
                   subrun.id status in
               Db.LogLine.insert isolate.id 2 line ;
+              stop_isolation isolation_run ;
               Db.Run.stop isolate.id status)
       | _ -> assert false))
 
@@ -728,13 +747,15 @@ let rec step loop =
  * process. Both this one and that one are forked off by `lurch step`. *)
 let exec run_id =
   let run = Db.Run.get run_id in
-  match run.Api.Run.command.operation with
+  match run.command.operation with
   | Chroot { template } ->
-      let template = Api.Run.var_expand run.env template in
-      Chroot.create run.id template
+      let template = Api.Run.var_expand run.env template
+      and secrets_dir = secrets_dir_of_run run in
+      Chroot.create run.id ?secrets_dir template
   | Docker { image } ->
-      let image = Api.Run.var_expand run.env image in
-      Docker.create run.id image
+      let image = Api.Run.var_expand run.env image
+      and secrets_dir = secrets_dir_of_run run in
+      Docker.create run.id ?secrets_dir image
   | _ ->
       Printf.sprintf "Cannot exec command %s"
         (Lang.string_of_command run.command) |>

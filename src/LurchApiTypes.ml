@@ -407,7 +407,7 @@ struct
       command : Command.t ;
       top_run : int ; (* Maybe self - aka NULL in the DB *)
       parent_run : int ; (* Maybe self - aka NULL in the DB *)
-      program : string option ;
+      program : string ;
       created : float ;
       started : float option ;
       stopped : float option ;

@@ -64,6 +64,7 @@ SERVER_SOURCES = \
 	src/LurchServerLib.ml \
 	src/LurchServerFiles.ml \
 	src/LurchServerDb.ml \
+	src/LurchServerSecrets.ml \
 	src/LurchServerCGroup.ml \
 	src/LurchServerChroot.ml \
 	src/LurchServerDocker.ml \

@@ -13,6 +13,7 @@ module Db = LurchServerDb
 module Httpd = LurchServerHttpd
 module Lang = LurchCommandLanguage
 module Version = LurchVersion
+module Secrets = LurchServerSecrets
 
 let () =
   Printexc.register_printer (function
@@ -51,6 +52,18 @@ let conninfo =
   let i = Arg.info ~env ~doc [ "db" ] in
   let def = "host=localhost port=5433 dbname=lurch password=secret user=postgres" in
   Arg.(value (opt string def i))
+
+let secrets_basedir =
+  let env = Term.env_info "LURCH_SECRETS_DIR" in
+  let doc = "Where to find per-program secrets on the host." in
+  let i = Arg.info ~env ~doc [ "secrets-dir" ] in
+  Arg.(value (opt string !Secrets.basedir i))
+
+let secrets_mount_point =
+  let env = Term.env_info "LURCH_SECRETS_MOUNT_POINT" in
+  let doc = "Where to bind-mount per-program secrets on the contained guest." in
+  let i = Arg.info ~env ~doc [ "secrets-mount-point" ] in
+  Arg.(value (opt string !Secrets.mount_point i))
 
 let run_id =
   let i = Arg.info ~doc:"Run number." [] in
@@ -101,25 +114,30 @@ let start dbg conninfo program_name () =
   Db.close ()
 
 let step dbg conninfo chroot_prefix busybox log_dir spawn_rate_limit loop
-         cgroup_version cgroup_mount_point () =
+         cgroup_version cgroup_mount_point
+         secrets_basedir secrets_mount_point () =
   LurchServerChroot.chroot_prefix := chroot_prefix ;
   LurchServerChroot.busybox := busybox ;
   CGroup.version := cgroup_version ;
   CGroup.mount_point := cgroup_mount_point ;
   Command.max_spawn_per_min := spawn_rate_limit ;
   Db.conninfo := conninfo ;
+  Secrets.basedir := secrets_basedir ;
+  Secrets.mount_point := secrets_mount_point ;
   init_log dbg true ;
   Command.step loop ;
   Db.close ()
 
 let exec dbg conninfo run_id chroot_prefix busybox log_dir cgroup_version
-         cgroup_mount_point () =
+         cgroup_mount_point secrets_basedir secrets_mount_point () =
   LurchServerChroot.chroot_prefix := chroot_prefix ;
   LurchServerChroot.busybox := busybox ;
   LurchServerLib.log_dir := log_dir ;
   CGroup.version := cgroup_version ;
   CGroup.mount_point := cgroup_mount_point ;
   Db.conninfo := conninfo ;
+  Secrets.basedir := secrets_basedir ;
+  Secrets.mount_point := secrets_mount_point ;
   init_log ~with_time:false dbg true ;
   log.debug "Executing run#%d" run_id ;
   Command.exec run_id ;
@@ -229,7 +247,8 @@ let step =
   Term.(
     (const step
       $ dbg $ conninfo $ chroot_prefix $ busybox $ log_dir $ spawn_rate_limit
-      $ loop $ cgroup_version $ cgroup_mount_point),
+      $ loop $ cgroup_version $ cgroup_mount_point
+      $ secrets_basedir $ secrets_mount_point),
     info ~doc:"Perform the next step(s) of execution." "step")
 
 (* Allows to execute internal commands as a separate process: *)
@@ -237,7 +256,7 @@ let exec =
   Term.(
     (const exec
       $ dbg $ conninfo $ run_id $ chroot_prefix $ busybox $ log_dir
-      $ cgroup_version $ cgroup_mount_point),
+      $ cgroup_version $ cgroup_mount_point $ secrets_basedir $ secrets_mount_point),
     info ~doc:"Execute given run id and quit. \
                Not supposed to be called directly."
          "_exec")

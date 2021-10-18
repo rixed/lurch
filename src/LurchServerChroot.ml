@@ -6,6 +6,7 @@ module Api = LurchApiTypes
 module CGroup = LurchServerCGroup
 module Db = LurchServerDb
 module Files = LurchServerFiles
+module Secrets = LurchServerSecrets
 
 (* Create chroot, populate them with basic utilities, and wrap command lines so that
  * they run inside it: *)
@@ -21,7 +22,7 @@ let busybox =
 
 (* Create a new chroot and record its path in the Db.
  * [isolation_id] identifies the command_chroot run. *)
-let create isolation_id template =
+let create isolation_id ?secrets_dir template =
   let path =
     !chroot_prefix ^"/"^
     string_of_int (int_of_float (Unix.time ())) ^"_"^
@@ -30,24 +31,42 @@ let create isolation_id template =
   Files.mkdir_all path ;
   system_or_fail
     ("chown "^ shell_quote (!user ^":") ^" "^ shell_quote path) ;
-  (match template with
-  | "busybox" ->
-      log.info "Populating chroot %S with busybox from %S" path !busybox ;
-      let bin = path ^"/bin" in
-      let bin_busybox = bin ^"/busybox" in
-      Files.cp !busybox bin_busybox ;
-      system_or_fail ("chmod o+x "^ shell_quote bin_busybox) ;
-      Unix.open_process_in (bin_busybox ^" --list") |>
-      IO.lines_of |>
-      Enum.iter (fun applet ->
-        log.debug "Populating chroot with %s" applet ;
-        system_or_fail ("ln "^ shell_quote bin_busybox ^" "^
-                               shell_quote (bin ^"/"^ applet)))
-  | "buster" ->
-      todo "copy the buster chroot"
-  | _ ->
-      invalid_arg ("Chroot.create "^ template)) ;
+  let dst = path ^"/"^ !Secrets.mount_point in
+  Option.may (fun src ->
+    bind_mount ~src ~dst
+  ) secrets_dir ;
+  finally
+    (fun () ->
+      Option.may (fun src ->
+        umount ~src ~dst
+      ) secrets_dir)
+    (fun () ->
+      match template with
+      | "busybox" ->
+          log.info "Populating chroot %S with busybox from %S" path !busybox ;
+          let bin = path ^"/bin" in
+          let bin_busybox = bin ^"/busybox" in
+          Files.cp !busybox bin_busybox ;
+          system_or_fail ("chmod o+x "^ shell_quote bin_busybox) ;
+          Unix.open_process_in (bin_busybox ^" --list") |>
+          IO.lines_of |>
+          Enum.iter (fun applet ->
+            log.debug "Populating chroot with %s" applet ;
+            system_or_fail ("ln "^ shell_quote bin_busybox ^" "^
+                                   shell_quote (bin ^"/"^ applet)))
+      | "buster" ->
+          todo "copy the buster chroot"
+      | _ ->
+          invalid_arg ("Chroot.create "^ template)) () ;
   Db.ChrootPath.insert isolation_id path
+
+(* Just umount the secrets dir, keeping the chroot (for now?) *)
+let delete isolation_id ?secrets_dir _template =
+  Option.may (fun src ->
+    let path = Db.ChrootPath.get isolation_id in
+    let dst = path ^"/"^ !Secrets.mount_point in
+    umount ~src ~dst
+  ) secrets_dir
 
 let env_of_template = function
   | "busybox" ->
@@ -78,5 +97,5 @@ let prepare_exec template isolation_id working_dir pathname args env =
   let env = Array.append (env_of_template template) env in
   working_dir, pathname, args, env
 
-let cgroup _isolation_id =
+let cgroup ?secrets_dir _isolation_id =
   CGroup.make_adhoc ()

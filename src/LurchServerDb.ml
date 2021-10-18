@@ -393,7 +393,7 @@ struct
              as environment \
          from run r \
          join run rtop on rtop.id = coalesce(r.top_run, r.id) \
-         left outer join program p on p.command = rtop.command \
+         join program p on p.command = rtop.command \
          left outer join approved w on w.run = r.id \
          left outer join chroot_path c on c.run = r.id \
          left outer join docker_instance d on d.run = r.id \
@@ -409,7 +409,7 @@ struct
       command = Command.get (getv int_of_string 0) ;
       top_run = getv int_of_string 1 ;
       parent_run = getv int_of_string 2 ;
-      program = getn identity 3 ;
+      program = getv identity 3 ;
       created = getv float_of_string 4 ;
       started = getn float_of_string 5 ;
       stopped = getn float_of_string 6 ;

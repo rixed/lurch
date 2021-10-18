@@ -340,6 +340,8 @@ Log in with user _demo_, password _demo_.
 
 - For more flexibility when self hosting, the database (Postgres) and HTTP servers are external.
 
+- A directory with secret files is bind mounted on the isolated container (default: /run/secrets)
+
 ## Running the docker image
 
 Instead of installing your own you could use the docker demo image.

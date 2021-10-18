@@ -115,6 +115,34 @@ external sys_exit : int -> 'a = "caml_sys_exit"
 
 let fd_of_int : int -> Unix.file_descr = Obj.magic
 
+let file_exists ?(is_dir=false) path =
+  let open Unix in
+  match Unix.stat path with
+  | exception _ -> false
+  | st ->
+      if is_dir then st.st_kind = S_DIR else true
+
+let shell_quote s =
+  "'"^ String.nreplace s "'" "'\\''" ^"'"
+
+let exec_cmd cmd =
+  log.debug "Executing command %S" cmd ;
+  let ret = Sys.command cmd in
+  if ret <> 0 then (
+    log.error "Command %S returned with exit code %d" cmd ret ;
+    failwith "exec_cmd: failure"
+  )
+
+let bind_mount ~src ~dst =
+  log.info "Mounting %s in %s" src dst ;
+  let cmd = "mount -t bind -o ro "^ shell_quote src ^" "^ shell_quote dst in
+  exec_cmd cmd
+
+let umount ~src ~dst =
+  log.info "Unmounting %s from %s" src dst ;
+  let cmd = "umount --lazy "^ shell_quote dst in
+  exec_cmd cmd
+
 let set_signals sigs behavior =
   List.iter (fun s ->
     Sys.set_signal s behavior
@@ -124,9 +152,6 @@ let clean_fork () =
   flush_all () ;
   Gc.compact () ; (* Avoid doing that twice *)
   Unix.fork ()
-
-let shell_quote s =
-  "'"^ String.nreplace s "'" "'\\''" ^"'"
 
 let write_or_fail ~fname fd s =
   try

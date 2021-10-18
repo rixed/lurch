@@ -334,12 +334,10 @@ let show_run ~waiting run selected_logs more_logs_expected =
   div [
     h2 [ text ("Details of Run #"^ string_of_int run.Api.Run.id) ] ;
     div [
-      (match run.program with
-      | Some name ->
-          info "For Program"
-            (txt_span ~a:(class_ "click" ::
-                          onclick_if_allowed waiting (`GetProgram name)) name)
-      | _ -> no_elt) ;
+      info "For Program"
+        (txt_span ~a:(class_ "click" ::
+                      onclick_if_allowed waiting (`GetProgram run.program))
+                  run.program) ;
       (if run.top_run <> run.id then
         let label = "run #" ^ string_of_int run.top_run in
         info "Part of "
@@ -347,9 +345,9 @@ let show_run ~waiting run selected_logs more_logs_expected =
                         onclick_if_allowed waiting (`GetRun (run.top_run, [||]))) label)
       else no_elt) ;
       Command.view run ;
-      match run.stopped, run.program with
-      | Some _, Some name ->
-          button "Run Again" (`StartProgram name)
+      match run.stopped with
+      | Some _ ->
+          button "Run Again" (`StartProgram run.program)
       | _ ->
           button "Cancel" (`CancelRun run.id) ] ;
     h2 [ text "Logs" ] ;

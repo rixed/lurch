@@ -5,18 +5,26 @@ open LurchServerLib
 module Api = LurchApiTypes
 module CGroup = LurchServerCGroup
 module Db = LurchServerDb
+module Secrets = LurchServerSecrets
 
 let instance_prefix = ref "lurch_"
 let docker = ref "/usr/bin/docker"
 
 (* Create and run a new docker instance for that image, and save its instance
  * name. *)
-let create isolation_id image =
+let create isolation_id ?secrets_dir image =
   let instance =
     !instance_prefix ^
     string_of_int (int_of_float (Unix.time ())) ^"_"^
     string_of_int (Unix.getpid ()) ^"_"^
     random_string () in
+  let mount =
+    match secrets_dir with
+    | None ->
+        ""
+    | Some p ->
+        "--mount type=bind,source="^ p ^
+        ",destination="^ !Secrets.mount_point ^",readonly" in
   (* TODO: add specific envvars to be set in the container? *)
   (* Automatic deletion after 10h (TODO: add the entrypoint and args in the
    * docker command configuration. *)
@@ -24,7 +32,7 @@ let create isolation_id image =
     command_output
       ("docker run -d --init \
          --name "^ shell_quote instance ^" \
-         -P -v /var/run/docker.sock:/var/run/docker.sock \
+         -P -v /var/run/docker.sock:/var/run/docker.sock "^ mount ^" \
          --rm --entrypoint /bin/sleep "^
          shell_quote image ^" 7200") in
   Db.DockerInstance.insert isolation_id instance docker_id
@@ -34,8 +42,6 @@ let create isolation_id image =
 let prepare_exec _image isolation_id working_dir pathname args env =
   log.debug "Preparing docker exec" ;
   let instance, _docker_id = Db.DockerInstance.get isolation_id in
-  (* [instance] is the friendly name of the container but for finding the
-   * effective cgroup we really need the id: *)
   let in_env =
     Array.init (Array.length env * 2) (fun i ->
       if i mod 2 = 0 then "-e" else env.(i/2)) in
@@ -63,12 +69,12 @@ let cgroup isolation_id =
           List.find_map (fun cgroup ->
             (* Look for cgroup v1: *)
             let fname = mount_point ^"/memory/"^ cgroup ^"/tasks" in
-            if Sys.file_exists fname then
+            if file_exists fname then
               Some (CGroup.make_external mount_point 1 cgroup)
             else
               (* Look for cgroup v2: *)
               let fname = mount_point ^"/"^ cgroup ^"/cgroup.procs" in
-              if Sys.file_exists fname then
+              if file_exists fname then
                 Some (CGroup.make_external mount_point 2 cgroup)
               else
                 None
