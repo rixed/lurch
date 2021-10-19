@@ -150,6 +150,15 @@ let command_of_string str =
         and env = List.map string_of_str env |> Array.of_list
         and timeout = or_null float_of_sym timeout in
         Exec { working_dir ; pathname ; args ; env ; timeout }
+    | Lst [ Sym "exec" ; Str working_dir ; Str pathname ; Lst args ; Lst env ] ->
+        let args = List.map string_of_str args |> Array.of_list
+        and env = List.map string_of_str env |> Array.of_list in
+        Exec { working_dir ; pathname ; args ; env ; timeout = None }
+    | Lst [ Sym "exec" ; Str working_dir ; Str pathname ; Lst args ] ->
+        let args = List.map string_of_str args |> Array.of_list in
+        Exec { working_dir ; pathname ; args ; env = [||] ; timeout = None }
+    | Lst [ Sym "exec" ; Str working_dir ; Str pathname ] ->
+        Exec { working_dir ; pathname ; args = [||] ; env = [||] ; timeout = None }
     | Lst [ Sym "approve" ; Sym timeout ; Str comment ; Sym autosuccess ] ->
         let timeout =
           if timeout = "null" then None else Some (float_of_string timeout) in
