@@ -90,23 +90,29 @@ let list conv = function
       (* Remove the outer curly braces: *)
       assert (s.[0] = '{' && s.[String.length s - 1] = '}') ;
       let s = String.sub s 1 (String.length s - 2) in
-      (* Split on all outer coma (not those within curly braces!): *)
-      let rec loop lst depth start i =
-        (* FIXME: handle double quotes *)
+      (* Split on all outer comas (not those within curly braces!), while
+       * also skipping comas in strings: *)
+      let rec loop lst in_string depth start i =
         if i >= String.length s then (
+          assert (not in_string) ;
+          assert (depth = 0) ;
           String.sub s start (i - start) :: lst
         ) else match s.[i] with
-        | ',' when depth = 0 ->
+        | '"' when not in_string ->
+            loop lst true depth start (i + 1)
+        | '"' when in_string ->
+            loop lst false depth start (i + 1)
+        | ',' when not in_string && depth = 0 ->
             let lst = String.sub s start (i - start) :: lst in
-            loop lst depth (i + 1) (i + 1)
-        | '{' ->
-            loop lst (depth + 1) start (i + 1)
-        | '}' ->
+            loop lst false depth (i + 1) (i + 1)
+        | '{' when not in_string ->
+            loop lst false (depth + 1) start (i + 1)
+        | '}' when not in_string ->
             assert (depth > 0) ;
-            loop lst (depth - 1) start (i + 1)
+            loop lst false (depth - 1) start (i + 1)
         | _ ->
-            loop lst depth start (i + 1) in
-      loop [] 0 0 0 |>
+            loop lst in_string depth start (i + 1) in
+      loop [] false 0 0 0 |>
       List.fold_left (fun lst s ->
         conv (sql_array_unquote s) :: lst
       ) []
@@ -115,6 +121,8 @@ let list conv = function
   ["foo"] (list identity "{foo}")
   ["foo" ; "bar"] (list identity "{foo,bar}")
   ["{foo,bar}"] (list identity "{{foo,bar}}")
+  ["-i" ; "-e" ; "s/^AC_INIT(ramen, .+)$/AC_INIT(ramen, ${revision})"] \
+    (list identity "{-i,-e,\"s/^AC_INIT(ramen, .+)$/AC_INIT(ramen, ${revision})\"}")
 *)
 
 let get_env s =
