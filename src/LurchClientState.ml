@@ -7,7 +7,7 @@ module Program = LurchClientProgram
 type location =
   | ShowError of string
   | ListPastRuns of Api.ListPastRuns.ts
-  | ListProgramsAndRun of Api.ListPrograms.ts
+  | ListPrograms of Api.ListPrograms.ts
   | ShowProgram of
       { program : Program.t ;
         (* If true, display the program in an editor: *)
@@ -24,7 +24,7 @@ type location =
 let string_of_location = function
   | ShowError _ -> "ShowError"
   | ListPastRuns _ -> "ListPastRuns"
-  | ListProgramsAndRun _ -> "ListProgramsAndRun"
+  | ListPrograms _ -> "ListPrograms"
   | ShowProgram _ -> "ShowProgram"
   | ConfirmDeleteProgram _ -> "ConfirmDeleteProgram"
   | ShowRun _ -> "ShowRun"

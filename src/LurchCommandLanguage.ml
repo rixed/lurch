@@ -159,9 +159,8 @@ let command_of_string str =
         Exec { working_dir ; pathname ; args ; env = [||] ; timeout = None }
     | Lst [ Sym "exec" ; Str working_dir ; Str pathname ] ->
         Exec { working_dir ; pathname ; args = [||] ; env = [||] ; timeout = None }
-    | Lst [ Sym "approve" ; Sym timeout ; Str comment ; Sym autosuccess ] ->
-        let timeout =
-          if timeout = "null" then None else Some (float_of_string timeout) in
+    | Lst [ Sym "approve" ; timeout ; Str comment ; Sym autosuccess ] ->
+        let timeout = or_null float_of_sym timeout in
         Approve { timeout ; comment ;
                   autosuccess = Api.sql_bool_of_string autosuccess }
     | Lst [ Sym "let" ; Sym var_name ; Str default ; Str comment ; s ] ->
@@ -184,8 +183,9 @@ let command_of_string str =
                mday = List.map int_of_sym mday ;
                month = List.map int_of_sym month ;
                wday = List.map int_of_sym wday }
-    | Lst [ Sym "spawn" ; Str program ] ->
-        Spawn { program }
+    | Lst [ Sym "spawn" ; Str program ; version ] ->
+        let version = or_null int_of_sym version in
+        Spawn { program ; version }
     | Lst [ Sym "for" ; Sym var_name ; Lst values ; s ] ->
         let values = List.map string_of_str values |> Array.of_list in
         ForLoop { var_name ; values ; subcommand = command_of_sexpr s }
@@ -256,8 +256,8 @@ let string_of_command ?max_depth cmd =
               Lst (List.map sym_of_int mday) ;
               Lst (List.map sym_of_int month) ;
               Lst (List.map sym_of_int wday) ]
-    | Spawn { program } ->
-        Lst [ Sym "spawn" ; Str program ]
+    | Spawn { program ; version } ->
+        Lst [ Sym "spawn" ; Str program ; or_null sym_of_int version ]
     | ForLoop { var_name ; values ; subcommand } ->
         let values = List.map str_of_string (Array.to_list values) in
         Lst [ Sym "for" ; Sym var_name ; Lst values ;

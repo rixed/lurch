@@ -25,8 +25,8 @@ let view_of_location st =
       let oldest_top_run = last_top_run lst in
       Views.list_past_runs ~waiting ~single_program:false
         ~on_more:(`GetPastProgramRuns oldest_top_run) lst
-  | ListProgramsAndRun lst ->
-      Views.list_programs_and_run ~waiting lst
+  | ListPrograms lst ->
+      Views.list_programs ~waiting lst
   | ShowProgram { program ; editable ; last_runs } ->
       Views.program_editor ~waiting ~editable program last_runs st.location
   | ConfirmDeleteProgram { program ; back } ->
@@ -127,7 +127,7 @@ let update =
   | `GotProgramsAndRun (Ok res) ->
       if debug then log_js (Js_browser.JSON.parse res) ;
       let res = Api.ListPrograms.array_of_json_string res in
-      return State.{ st with location = ListProgramsAndRun res ;
+      return State.{ st with location = ListPrograms res ;
                              waiting = false }
   | `CreateProgram ->
       return State.{ st with
@@ -191,7 +191,8 @@ let update =
           (match st.State.location with
           | ShowProgram { program ; editable ; last_runs } ->
               let program =
-                Program.{ edited = Api.Program.{ name ; created = 0. ; command } ;
+                Program.{ edited = Api.Program.{ name ; version = 0 ;
+                                                 created = 0. ; command } ;
                           saved = program.saved } in
               let location = State.ShowProgram { program ; editable ; last_runs } in
               return State.{ st with location ; waiting = false }
@@ -212,7 +213,7 @@ let update =
           let name = Element.value name in
           let payload =
             Api.Program.(to_json_string
-              { name ; command ; created = 0. }) in
+              { name ; version = 0 ; command ; created = 0. }) in
           let ajax =
             Http_put {
               url = lurch_url "save_program" [ "prev_name", prev_name ] ;

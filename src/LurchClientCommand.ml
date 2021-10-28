@@ -229,12 +229,18 @@ let rec edit_as_form ?a ~depth ~op_mode ?(editable=true) ?dom_id command =
           input_time "mday" "Days of month:" mday ;
           input_time "month" "Months:" month ;
           input_time "wday" "Days of week (0=Sun):" wday ]
-    | Spawn { program } ->
+    | Spawn { program ; version } ->
         div [
           p [ text "Start the specified program. Do not wait for its \
                     termination." ] ;
           input_text ?id:(id "program") ~label:"Program name:" ~editable
-            ~placeholder:"enter the program name" program ]
+            ~placeholder:"enter the program name" program ;
+          (if editable || version <> None then
+            p [
+              input_text ?id:(id "version") ~label:"Specific version:" ~editable
+                ~placeholder:"leave blank for latest"
+                (option_map_default "" string_of_int version) ]
+          else no_elt) ]
     | ForLoop { var_name ; values ; subcommand } ->
         div [
           p [ text "Repeat the body for each specified value. A variable of the \
@@ -414,8 +420,9 @@ let rec command_of_form_exc ?add_input ?rem_input document dom_id =
         and wday = value_ints "wday" in
         Api.Command.Wait { minute ; hour ; mday ; month ; wday }
     | "spawn" ->
-        let program = value ~def:"" "program" in
-        Api.Command.Spawn { program }
+        let program = value ~def:"" "program"
+        and version = option_map int_of_string (value_opt "version") in
+        Api.Command.Spawn { program ; version }
     | "for" ->
         let var_name = value ~def:"" "var_name"
         and values = value_strings "values"
@@ -596,9 +603,12 @@ let rec view run =
             disp_times "Day of month" mday ;
             disp_times "Month" month ;
             disp_times "Day of week (0=Sun)" wday ] ]
-    | Spawn { program } ->
+    | Spawn { program ; version } ->
         let program = Api.Run.var_expand run.env program in
-        p [ text ("Spawn program "^ program ^".") ]
+        p [ text ("Spawn program "^ program ^
+                  (match version with
+                  | None -> ""
+                  | Some v -> " (version "^ string_of_int v ^")") ^".") ]
     | ForLoop { var_name ; values ; subcommand } ->
         div [
           h3 [ text ("For "^ var_name ^" in "^ array_join ", " values ^" do:") ] ;

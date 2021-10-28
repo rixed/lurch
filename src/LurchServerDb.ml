@@ -216,7 +216,8 @@ struct
                 comment = getv 4 }
           | 11 ->
               Api.Command.Spawn {
-                program = getv 1 }
+                program = getv 1 ;
+                version = getn int_of_string 2 }
           | 12 ->
               Api.Command.ForLoop {
                 var_name = getv 1 ;
@@ -297,8 +298,10 @@ struct
              "mday", sql_of_string_list string_of_int mday ;
              "month", sql_of_string_list string_of_int month ;
              "wday", sql_of_string_list string_of_int wday |]
-      | Spawn { program } ->
-          "command_spawn", [| "program", program |]
+      | Spawn { program ; version } ->
+          "command_spawn",
+            [| "program", program ;
+               "version", or_null string_of_int version |]
       | ForLoop { var_name ; values ; subcommand } ->
           "command_for_loop",
           [| "var_name", var_name ;
@@ -386,6 +389,7 @@ struct
            coalesce(r.top_run, r.id) as top_run, \
            coalesce(r.parent_run, r.id) as parent_run, \
            p.name, \
+           p.version, \
            extract(epoch from r.created), \
            extract(epoch from r.started), \
            extract(epoch from r.stopped), \
@@ -418,26 +422,27 @@ struct
       top_run = getv int_of_string 1 ;
       parent_run = getv int_of_string 2 ;
       program = getv identity 3 ;
-      created = getv float_of_string 4 ;
-      started = getn float_of_string 5 ;
-      stopped = getn float_of_string 6 ;
-      cgroup = getn identity 7 ;
-      pid = getn int_of_string 8 ;
-      exit_code = getn int_of_string 9 ;
+      version = getv int_of_string 4 ;
+      created = getv float_of_string 5 ;
+      started = getn float_of_string 6 ;
+      stopped = getn float_of_string 7 ;
+      cgroup = getn identity 8 ;
+      pid = getn int_of_string 9 ;
+      exit_code = getn int_of_string 10 ;
       stats_self =
-        Api.RunStats.make (getn float_of_string 10) (getn float_of_string 11)
-                          (getn float_of_string 12) (getn float_of_string 13) ;
+        Api.RunStats.make (getn float_of_string 11) (getn float_of_string 12)
+                          (getn float_of_string 13) (getn float_of_string 14) ;
       stats_desc = DescStats.get id ;
-      children = array identity (getv identity 14) |>
+      children = array identity (getv identity 15) |>
                  Array.map (get % int_of_string) ;
-      approval_msg = getn identity 15 ;
-      approved_by = getn identity 16 ;
-      chroot_path = getn identity 17 ;
-      docker_instance = getn identity 18 ;
-      docker_id = getn identity 19 ;
-      var_value = getn identity 20 ;
-      var_set_by = getn identity 21 ;
-      env = get_env (getv identity 22) ;
+      approval_msg = getn identity 16 ;
+      approved_by = getn identity 17 ;
+      chroot_path = getn identity 18 ;
+      docker_instance = getn identity 19 ;
+      docker_id = getn identity 20 ;
+      var_value = getn identity 21 ;
+      var_set_by = getn identity 22 ;
+      env = get_env (getv identity 23) ;
       (* Populated independently as we do want to load logs on demand only: *)
       logs = [||] }
 
@@ -659,36 +664,34 @@ end
 
 module Program =
 struct
-  let get_ field value =
+  (* Only select the latest version.
+   * TODO: make it possible to select and display a former version. *)
+  let get name =
     let cnx = get_cnx () in
-    let params = [| value |] in
+    let params = [| name |] in
     let res =
       cnx#exec ~expect:[Tuples_ok] ~params
-        ("select name, extract(epoch from created), command \
+        ("select name, version, extract(epoch from created), command \
           from program \
-          where "^ sql_quote field ^" = $1 and deleted < created") in
+          where name = $1 and deleted < created \
+          order by version desc limit 1") in
     if res#ntuples <> 1 then
-      failwith ("Cannot find a unique program with "^ field ^" = "^ value) ;
+      failwith ("Cannot find program named "^ name) ;
     log.debug "Got tuple %a" (Array.print String.print) (res#get_tuple 0) ;
+    let getv conv j = conv (res#getvalue 0 j) in
     Api.Program.{
-      name = res#getvalue 0 0 ;
-      created = float_of_string (res#getvalue 0 1) ;
-      command = Command.get (int_of_string (res#getvalue 0 2)) }
+      name = getv identity 0 ;
+      version = getv int_of_string 1 ;
+      created = getv float_of_string 2 ;
+      command = Command.get (getv int_of_string 3) }
 
-  let get = get_ "name"
-  let of_command cmd = get_ "command" (string_of_int cmd.Api.Command.id)
-
-  let insert ?(overwrite=false) p =
+  let insert p =
     let cnx = get_cnx () in
     let command = Command.insert_or_update p.Api.Program.command in
     let params = [| p.name ; command |] in
     log.debug "Inserting program %S" p.name ;
     cnx#exec ~expect:[Command_ok] ~params
-      ("insert into program (name, command) values ($1, $2)" ^
-       if overwrite then
-         " on conflict on constraint program_pkey do \
-           update set command = excluded.command"
-       else "") |>
+      ("insert into program (name, command) values ($1, $2)") |>
     ignore
 
   let delete prev_name =
@@ -699,14 +702,12 @@ struct
       "update program set deleted = now() where name = $1" |>
     ignore
 
-  let update p prev_name =
-    let cnx = get_cnx () in
-    let command = Command.insert_or_update p.Api.Program.command in
-    let params = [| p.Api.Program.name ; command ; prev_name |] in
-    log.debug "Updating program %S" prev_name ;
-    cnx#exec ~expect:[Command_ok] ~params
-      "update program set name = $1, command = $2 where name = $3" |>
-    ignore
+  (* Program are versioned, an update just creates a new version, which
+   * happen automatically in the DB when a program with the same name is
+   * inserted. If the name is different we just insert that as a new
+   * program. So [prev_name] is actually not needed. *)
+  let update p _prev_name =
+    insert p
 end
 
 (*
@@ -738,7 +739,7 @@ struct
         Array.append params [| Option.get program |] in
     let res =
       cnx#exec ~expect:[Tuples_ok] ~params
-        ("select name, top_run, \
+        ("select name, version, top_run, \
                  extract(epoch from created), \
                  extract(epoch from started), \
                  extract(epoch from stopped), \
@@ -756,17 +757,18 @@ struct
       let getv conv j = conv (res#getvalue i j) in
       let getn conv j = if res#getisnull i j then None else Some (getv conv j) in
       log.debug "Got tuple %a" (Array.print String.print) (res#get_tuple i) ;
-      let top_run = getv int_of_string 1 in
+      let top_run = getv int_of_string 2 in
       Api.ListPastRuns.{
         name = getv identity 0 ;
+        version = getv int_of_string 1 ;
         top_run ;
-        created = getv float_of_string 2 ;
-        started = getn float_of_string 3 ;
-        stopped = getn float_of_string 4 ;
-        exit_code = getn int_of_string 5 ;
+        created = getv float_of_string 3 ;
+        started = getn float_of_string 4 ;
+        stopped = getn float_of_string 5 ;
+        exit_code = getn int_of_string 6 ;
         stats_self =
-          Api.RunStats.make (getn float_of_string 6) (getn float_of_string 7)
-                            (getn float_of_string 8) (getn float_of_string 9) ;
+          Api.RunStats.make (getn float_of_string 7) (getn float_of_string 8)
+                            (getn float_of_string 9) (getn float_of_string 10) ;
         stats_desc = DescStats.get top_run })
 end
 
@@ -781,6 +783,7 @@ struct
     let res =
       cnx#exec ~expect:[Tuples_ok]
         "select name, \
+                version, \
                 last_run, \
                 extract(epoch from last_start), \
                 extract(epoch from last_stop),
@@ -792,10 +795,11 @@ struct
       log.debug "Got tuple %a" (Array.print String.print) (res#get_tuple i) ;
       Api.ListPrograms.{
         name = getv identity 0 ;
-        last_run = getn int_of_string 1 ;
-        last_start = getn float_of_string 2 ;
-        last_stop = getn float_of_string 3 ;
-        last_exit_code = getn int_of_string 4 })
+        last_run_version = getv int_of_string 1 ;
+        last_run = getn int_of_string 2 ;
+        last_start = getn float_of_string 3 ;
+        last_stop = getn float_of_string 4 ;
+        last_exit_code = getn int_of_string 5 })
 end
 
 (*

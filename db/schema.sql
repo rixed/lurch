@@ -10,6 +10,8 @@ create database lurch;
 -- Commands:
 
 -- A base table (not using postgresql inheritance which is in limbo)
+-- Commands are not shared amongst several programs, even when identical, so that a
+-- run, that is attached to a command, can be related to its program.
 create table command (
   id serial,
   primary key (id)
@@ -128,6 +130,7 @@ create table command_wait (
 create table command_spawn (
   command int,
   program text not null,
+  version int,  -- null means latest
   foreign key (command) references command (id) on delete cascade
 );
 
@@ -152,13 +155,31 @@ create table command_break (
 -- Append only tables so we can go back in history, see previous runs etc:
 create table program (
   name text not null,
+  version int not null default 0, -- see trigger below
   created timestamp not null default now(),
   deleted timestamp not null default to_timestamp(0), -- meaning not deleted
   command int not null,
 
-  primary key (name, deleted),
+  primary key (name, version),
   foreign key (command) references command (id)
 );
+
+create or replace function next_version(name_ text) returns int language sql as $$
+  select coalesce(max(version), 0) + 1 from program where name = name_;
+$$;
+
+create or replace function insert_new_program() returns trigger language plpgsql as $$
+begin
+  if new.version <= 0 then
+    new.version = next_version(new.name);
+  end if;
+  return new;
+end;
+$$;
+
+create trigger trig_insert_new_program
+  before insert on program
+  for each row execute procedure insert_new_program();
 
 -- Save the run of any command (since program are their top level command,
 -- of program too:
@@ -293,6 +314,7 @@ create view top_level_runs as
 create view list_past_runs as
   select
     p.name as name,
+    p.version as version,
     r.id as top_run,
     r.created as created,
     r.started as started,
@@ -308,11 +330,13 @@ create view list_past_runs as
   where
     p.deleted <= p.created; -- not deleted
 
--- The list of program, with info about their last run:
+
+-- The list of programs, with their current version number and info about their last run:
 -- Corresponds to API type ListPrograms
 create view list_programs as
   select
     p.name as name,
+    p.version as version,
     r.id as last_run,
     r.started as last_start,
     r.stopped as last_stop,
@@ -326,8 +350,9 @@ create view list_programs as
     left outer join run r on r.command = lr.command and
                              r.created = lr.last_created
   where
+    p.version = (select max(version) from program where name = p.name) and
     p.deleted <= p.created -- not deleted
-  group by p.name, r.id, r.started, r.stopped, r.exit_code;
+  group by p.name, p.version, r.id, r.started, r.stopped, r.exit_code;
 
 -- All terminal commands that have not been started yet:
 create view list_waiting_terminals as

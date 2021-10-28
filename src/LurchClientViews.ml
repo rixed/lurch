@@ -92,13 +92,14 @@ let list_past_runs ~single_program ~waiting ~on_more runs =
   ) stddevs ;
   (* Build the table: *)
   let num_cols =
-    if single_program then 12 else 13 in
+    if single_program then 13 else 14 in
   div [
     let header =
       [ tr (
           td ~a:[rowspan 4] [ text "run#" ] ::
           (let tds =
-            [ td ~a:[rowspan 4] [ text "started" ] ;
+            [ td ~a:[rowspan 4] [ text "version" ] ;
+              td ~a:[rowspan 4] [ text "started" ] ;
               td ~a:[rowspan 4] [ text "stopped" ] ;
               td ~a:[colspan 8] [ text "resources" ] ;
               td ~a:[rowspan 4] [ text "outcome" ] ] in
@@ -169,6 +170,8 @@ let list_past_runs ~single_program ~waiting ~on_more runs =
         td ~a:(class_ "click" :: goto_run)
           [ text ("#"^ string_of_int r.top_run) ] ::
         (let tds =
+          td (*~a:(class_ "click" :: goto_prog) TODO: goto_prog of that version *)
+            [ text (string_of_int r.version) ] ::
           (if r.started = None then
             [ td ~a:(class_ "click" :: colspan 2 :: goto_run)
                 [ text "waiting" ] ]
@@ -201,7 +204,7 @@ let list_past_runs ~single_program ~waiting ~on_more runs =
           td ~a:(class_ "click" :: goto_prog) [ text r.name ] :: tds)))) ]
 
 (* Display all programs in a single table, also displaying their last run *)
-let list_programs_and_run ~waiting programs =
+let list_programs ~waiting programs =
   let header =
     simple_table_header [ "program" ; "last start" ; "last stop" ; "outcome" ; "action" ] in
   let footer =
@@ -214,7 +217,7 @@ let list_programs_and_run ~waiting programs =
     tr (
       td ~a:(class_ "click" ::
             onclick_if_allowed waiting (`GetProgram p.Api.ListPrograms.name))
-        [ text p.name ] ::
+        [ text (p.name ^" v"^ string_of_int p.last_run_version) ] ::
       (match p.last_run with
       | None ->
           [ td ~a:[ colspan 3 ] [ text "not yet run" ] ]
@@ -256,7 +259,7 @@ let program_editor ~waiting ~editable program last_runs current_location =
     h2 [ text (
       match program.Program.saved with
       | None -> "New Program"
-      | Some s -> "Program " ^ s.Api.Program.name) ] ;
+      | Some s -> "Program " ^ s.Api.Program.name ^" v"^ string_of_int s.version) ] ;
     table [
       tr [
         td [ text "Name" ] ;
@@ -320,7 +323,8 @@ let program_confirm_deletion program back =
   (* Called only for saved programs: *)
   let program_name = (option_get program.Program.saved).Api.Program.name in
   div [
-    p [ text ("Are you sure you want to delete program "^ program_name ^"?") ] ;
+    p [ text ("Are you sure you want to delete all versions of program "^
+              program_name ^"?") ] ;
     p [ button "Cancel" (`SetLocation back) ;
         horiz_spacer ;
         button "Confirm" (`DeleteProgram program_name) ] ]
@@ -337,7 +341,7 @@ let show_run ~waiting run selected_logs more_logs_expected =
       info "For Program"
         (txt_span ~a:(class_ "click" ::
                       onclick_if_allowed waiting (`GetProgram run.program))
-                  run.program) ;
+                  (run.program ^" v"^ string_of_int run.version)) ;
       (if run.top_run <> run.id then
         let label = "run #" ^ string_of_int run.top_run in
         info "Part of "

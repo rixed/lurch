@@ -112,7 +112,8 @@ struct
         { (* Better than taking the run_id of the program to spawn, storing
              its name allow to make use of variable expansion. Also survive
              program changes (the table of programs is append-only): *)
-          program : string }
+          program : string ;
+          version : int option (* None means latest *) }
     | ForLoop of
         { var_name : string ;
           values : string array ;
@@ -177,15 +178,15 @@ struct
     | Nop _ ->
         "Nop"
     | Isolate { builder ; subcommand } ->
-        "Isolate(builder:"^ to_string builder ^
-        ", subcommand:"^ to_string subcommand ^")"
+        "Isolate(builder:"^ to_string builder ^", \
+                 subcommand:"^ to_string subcommand ^")"
     | Chroot { template } ->
         "Chroot(template:"^ template ^")"
     | Docker { image } ->
         "Docker(image:"^ image ^")"
     | Exec { working_dir ; pathname ; args ; env ; timeout } ->
-        "Exec(working dir:"^ working_dir ^", pathname:"^ pathname ^
-        ", args:…, env:…, timeout:"^
+        "Exec(working dir:"^ working_dir ^", pathname:"^ pathname ^", \
+              args:…, env:…, timeout:"^
         or_null string_of_float timeout ^")"
     | Approve { timeout ; comment ; autosuccess } ->
         "Approve(timeout:"^
@@ -200,9 +201,9 @@ struct
         "Retry(subcommand:"^ to_string subcommand ^", up_to:"^
         string_of_int up_to ^")"
     | If { condition ; consequent ; alternative } ->
-        "If(condition:"^ to_string condition ^
-        ", consequent:"^ to_string consequent ^
-        ", alternative:"^ to_string alternative ^")"
+        "If(condition:"^ to_string condition ^", \
+            consequent:"^ to_string consequent ^", \
+            alternative:"^ to_string alternative ^")"
     | Pause { duration } ->
         "Pause(duration:"^ string_of_float duration ^")" ;
     | Wait { minute ; hour ; mday ; month ; wday } ->
@@ -213,8 +214,9 @@ struct
                  string_of_times mday ^" "^
                  string_of_times month ^" "^
                  string_of_times wday ^")"
-    | Spawn { program } ->
-        "Spawn(program:"^ program ^")"
+    | Spawn { program ; version } ->
+        "Spawn(program:"^ program ^", \
+               version:"^ or_null string_of_int version ^")"
     | ForLoop { var_name ; values ; subcommand } ->
         "For(var_name:"^ var_name ^", values:…, subcommand:"^ to_string subcommand ^
         ")"
@@ -234,6 +236,7 @@ module Program =
 struct
   type t =
     { name : string ;
+      version : int ;
       created : float ;
       command : Command.t }
     [@@deriving json]
@@ -408,6 +411,7 @@ struct
       top_run : int ; (* Maybe self - aka NULL in the DB *)
       parent_run : int ; (* Maybe self - aka NULL in the DB *)
       program : string ;
+      version : int ;
       created : float ;
       started : float option ;
       stopped : float option ;
@@ -493,6 +497,7 @@ module ListPastRuns =
 struct
   type t =
     { name : string ;
+      version : int ;
       top_run : int ;
       created : float ;
       started : float option ;
@@ -517,6 +522,7 @@ module ListPrograms =
 struct
   type t =
     { name : string ;
+      last_run_version : int ;  (* The version that was run last *)
       last_run : int option ;
       last_start : float option ;
       last_stop : float option ;

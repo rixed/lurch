@@ -151,12 +151,13 @@ let export dbg conninfo program_name () =
   print_newline () ;
   Db.close ()
 
-let import dbg conninfo program_name overwrite () =
+let import dbg conninfo program_name () =
   Db.conninfo := conninfo ;
   init_log ~with_time:false dbg true ;
   let command = IO.(read_all stdin) |> Lang.command_of_string in
-  let program = Api.Program.{ name = program_name ; command ; created = 0. } in
-  Db.Program.insert ~overwrite program ;
+  let program =
+    Api.Program.{ name = program_name ; version = 0 ; command ; created = 0. } in
+  Db.Program.insert program ;
   Db.close ()
 
 let programs dbg conninfo () =
@@ -270,14 +271,9 @@ let export =
     info ~doc:"Dump a program as an s-expression that can be later imported."
          "export")
 
-let overwrite =
-  let i = Arg.info ~doc:"Overwrite preexisting program with the same name, \
-                         if any." [ "o" ; "overwrite" ] in
-  Arg.(value (flag i))
-
 let import =
   Term.(
-    (const import $ dbg $ conninfo $ program $ overwrite),
+    (const import $ dbg $ conninfo $ program),
     info ~doc:"Read a program from stdin as an s-expression."
          "import")
 
