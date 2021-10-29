@@ -17,7 +17,6 @@ _opam
 config.log
 config.status
 autom4te.cache
-m4
 lurch
 www/lurch
 www/spa.js
