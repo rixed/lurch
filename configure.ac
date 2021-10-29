@@ -24,6 +24,12 @@ AC_CHECK_OCAML_PKG(ocaml-vdom)
 AC_CHECK_OCAML_PKG(postgresql)
 AC_CHECK_OCAML_PKG(syslog)
 
+AC_PATH_PROG(CONVERT, convert)
+if test -z "$CONVERT"; then
+  AC_MSG_ERROR([Please install imagemagick (for convert).])
+fi
+AC_SUBST([CONVERT])
+
 AC_CONFIG_FILES([
   Makefile
   opam
