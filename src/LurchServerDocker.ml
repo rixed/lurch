@@ -29,10 +29,12 @@ let create isolation_id ?secrets_dir image =
   (* Automatic deletion after 10h (TODO: add the entrypoint and args in the
    * docker command configuration. *)
   let docker_id =
+    (* FIXME: make the fuse thing optional *)
     command_output
       ("docker run -d --init \
          --name "^ shell_quote instance ^" \
          -P -v /var/run/docker.sock:/var/run/docker.sock "^ mount ^" \
+         --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor:unconfined \
          --rm --entrypoint /bin/sleep "^
          shell_quote image ^" 7200") in
   Db.DockerInstance.insert isolation_id instance docker_id

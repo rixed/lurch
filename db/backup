@@ -24,6 +24,13 @@ mv "$dest".tmp "$dest"
 
 echo Done
 
+echo -n "Latest backup size: "
+du -h -s "$dest"
+echo -n "Total backup size: "
+du -h -s "$backup_dir"
+echo -n "Available disk space:"
+df -h --output=avail "$dest" | sed -e 1d
+
 # Note: restore with:
 #
 # docker exec -i $instance_name dropdb -U postgres -d "$db_name" &&

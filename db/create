@@ -11,7 +11,7 @@ db_docker_image=postgres
 
 # Create a docker instance of postgres:
 
-db_container=$(docker run --name $instance_name -p $db_port:5432 -e POSTGRES_PASSWORD=$db_pwd --detach $db_docker_image -c work_mem=1GB)
+db_container=$(docker run --name $instance_name -p 127.0.0.1:$db_port:5432 -e POSTGRES_PASSWORD=$db_pwd --detach --restart=always $db_docker_image -c work_mem=1GB)
 
 echo "DB running in docker container $db_container"
 
