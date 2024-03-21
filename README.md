@@ -60,10 +60,11 @@ You will then have to bind-mount this cgroup subtree in the lurch container and 
 Finally, we will also need `-P` to use the HTTP GUI later-on, so that the final docker command line is quite a mouthfull already:
 
 ```shell
-% docker run -v /var/run/docker.sock:/var/run/docker.sock \
+% docker run --name lurch-demo \
+             -v /var/run/docker.sock:/var/run/docker.sock \
              -v /sys/fs/cgroup/lurch:/lurch/cgroup/lurch \
              -e CGROUP_VERSION=2 -e CGROUP_MOUNT_POINT=/lurch/cgroup \
-             --name lurch-demo -P --detach rixed/lurch
+             -P --detach rixed/lurch
 ```
 
 This will create and run the Postgresql database, the HTTP service for the GUI and the lurch command executor.
@@ -350,7 +351,8 @@ If your host operating system is using cgroup2:
 
 ```shell
 % docker pull rixed/lurch
-% docker run -v /var/run/docker.sock:/var/run/docker.sock \
+% docker run --name lurch-demo \
+             -v /var/run/docker.sock:/var/run/docker.sock \
              -v /sys/fs/cgroup/lurch:/lurch/cgroup/lurch \
              -e CGROUP_VERSION=2 -e CGROUP_MOUNT_POINT=/lurch/cgroup \
              -P rixed/lurch
@@ -360,7 +362,8 @@ If it's using legacy cgroup:
 
 ```shell
 % docker pull rixed/lurch
-% docker run -v /var/run/docker.sock:/var/run/docker.sock \
+% docker run --name lurch-demo \
+             -v /var/run/docker.sock:/var/run/docker.sock \
              -P rixed/lurch
 ```
 
@@ -420,6 +423,14 @@ With the `--loop` option the command will keep running forever, otherwise it wou
 
 ```shell
 % www/lurch step --loop
+```
+
+Or, manually for more control:
+
+```shell
+% while sudo www/lurch step --debug --busybox=$HOME/bin/busybox --secrets-dir=$PWD/programs/secrets --cgroup-version=2 ; do
+    sleep 1
+  done
 ```
 
 ### The WWW CGI interface

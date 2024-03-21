@@ -31,8 +31,6 @@ PACKAGES_CLIENT = \
 PACKAGES_BOTH = \
 	batteries,cgi,cmdliner,findlib,js_of_ocaml,js_of_ocaml-ppx,js_of_ocaml-ppx_deriving_json,ocaml-vdom,postgresql,syslog
 
-# `make` should compile and install everything, yet to build the deb or
-# tarball RmAdmin is not needed:
 PACKAGED_BIN = www/lurch
 INSTALLED_BIN = $(PACKAGED_BIN)
 INSTALLED_LIB =

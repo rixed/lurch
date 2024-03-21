@@ -26,6 +26,7 @@ docker exec -i $instance_name psql --quiet -U postgres -f /dev/stdin --quiet < d
 
 # Also:
 echo 'Creating cgroup'
+sudo mount -o remount,rw -t cgroup2 none /sys/fs/cgroup
 sudo cgcreate -a "$USER" -t "$USER" -g cpuacct,memory:lurch
 
 echo 'Done.'

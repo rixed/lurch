@@ -33,6 +33,6 @@ df -h --output=avail "$dest" | sed -e 1d
 
 # Note: restore with:
 #
-# docker exec -i $instance_name dropdb -U postgres -d "$db_name" &&
+# docker exec -i $instance_name dropdb -U postgres "$db_name" &&
 # db/create &&
 # zcat $dest | docker exec -i $instance_name psql -U postgres -d "$db_name"
