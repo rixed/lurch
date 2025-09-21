@@ -1,6 +1,7 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e
+set -o pipefail
 
 # Must match what's in db/create:
 instance_name=lurchdb
@@ -8,6 +9,11 @@ db_port=5433
 db_name=lurch
 
 backup_dir=/mnt/backup-server/backups/lurch/db
+
+if test -z "$(docker ps -f "name=$instance_name" --format json)" ; then
+  echo "Lurch is not running."
+  exit 0
+fi
 
 # Check backup_dir does indeed exist, or the backup disk might not be mounted:
 if ! test -d "$backup_dir"; then
